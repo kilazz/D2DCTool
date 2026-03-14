@@ -1,0 +1,65 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:D2DCTool" x:Class="D2DCTool.MainWindow" Title="D2DC Tool" Width="800" Height="600" WindowStartupLocation="CenterScreen">
+	<Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="320,*">
+		<TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="D2DC Tool" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,10,0,20"/>
+		<ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto">
+			<StackPanel Spacing="10" Margin="20,0,10,0">
+				<TextBlock Text="Unpack Archive" FontWeight="Bold"/>
+				<Button Name="BtnOpenDv2" Content="Open .DV2 Archive" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+				<Button Name="BtnUnpack" Content="Extract All" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
+				<Separator Margin="0,5"/>
+				<TextBlock Text="Pack Archive" FontWeight="Bold"/>
+				<Button Name="BtnOpenFolder" Content="Select Folder" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+				<CheckBox Name="ChkCompress" Content="Use Zlib Compression" IsChecked="True"/>
+				<ComboBox Name="CmbCompressionLevel" SelectedIndex="0" HorizontalAlignment="Stretch" IsEnabled="{Binding #ChkCompress.IsChecked}">
+					<ComboBoxItem>Optimal (Zlib Level 6 - Default)</ComboBoxItem>
+					<ComboBoxItem>Smallest Size (Zlib Level 9 - Max)</ComboBoxItem>
+					<ComboBoxItem>Fastest (Zlib Level 1)</ComboBoxItem>
+					<ComboBoxItem>No Compression (Zlib Level 0)</ComboBoxItem>
+				</ComboBox>
+				<Button Name="BtnPack" Content="Pack to .DV2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
+				<Separator Margin="0,5"/>
+				<TextBlock Text="Texture Tools" FontWeight="Bold"/>
+				<Button Name="BtnConvertDds" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Convert Single DDS to NIF" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnExtractNif" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Extract Single NIF to DDS" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnBatchDdsToNif" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Batch Convert DDS -> NIF" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnBatchNifToDds" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Batch Extract NIF -> DDS" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Separator Margin="0,5"/>
+				<TextBlock Text="XML Tools" FontWeight="Bold"/>
+				<Button Name="BtnExtractXml" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Extract Binary XML to Text XML" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnRepackXml" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Repack Text XML to Binary XML" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnBatchExtractXml" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Batch Extract Binary -> Text XML" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+				<Button Name="BtnBatchRepackXml" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Batch Repack Text -> Binary XML" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
+			</StackPanel>
+		</ScrollViewer>
+		<Border Grid.Row="1" Grid.Column="1" Background="#1E1E1E" CornerRadius="5" Margin="10,0,20,0" BorderBrush="#333333" BorderThickness="1">
+			<TreeView Name="FileTree">
+				<TreeView.ItemTemplate>
+					<TreeDataTemplate DataType="local:FileTreeNode" ItemsSource="{Binding Children}">
+						<StackPanel Orientation="Horizontal" Spacing="5">
+							<TextBlock Text="{Binding Name}"/>
+						</StackPanel>
+					</TreeDataTemplate>
+				</TreeView.ItemTemplate>
+			</TreeView>
+		</Border>
+		<Border Grid.Row="2" Grid.ColumnSpan="2" Background="#2D2D30" CornerRadius="5" Padding="10" Margin="20,20,20,20">
+			<TextBlock Name="TxtLog" Text="Ready." Foreground="#4CAF50" TextWrapping="Wrap"/>
+		</Border>
+	</Grid>
+</Window>
