@@ -4,7 +4,7 @@ A cross-platform utility for **Divinity 2 Developer's Cut** modding.
 ## Features
 *   **Archive Tools (.dv2):** Extract and pack game archives with Zlib compression support.
 *   **Texture Tools:** Convert between DDS and Gamebryo NIF formats (supports batch processing).
-*   **XML Tools:** Extract binary Gamebryo XML to readable text and repack edited files (supports batch processing).
+*   **XML Tools:** Extract binary Gamebryo XML to readable text and repack edited files (supports batch processing). ~
 
 ## Usage
 1.  Run the application.
