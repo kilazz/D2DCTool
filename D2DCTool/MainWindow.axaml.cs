@@ -26,12 +26,14 @@ public partial class MainWindow : Window
 
         var btnOpenDv2 = this.FindControl<Button>("BtnOpenDv2");
         var btnUnpack = this.FindControl<Button>("BtnUnpack");
+        var btnBatchUnpack = this.FindControl<Button>("BtnBatchUnpack");
         var btnOpenFolder = this.FindControl<Button>("BtnOpenFolder");
         var btnPack = this.FindControl<Button>("BtnPack");
         var fileTree = this.FindControl<TreeView>("FileTree");
 
         if (btnOpenDv2 != null) btnOpenDv2.Click += BtnOpenDv2_Click;
         if (btnUnpack != null) btnUnpack.Click += BtnUnpack_Click;
+        if (btnBatchUnpack != null) btnBatchUnpack.Click += BtnBatchUnpack_Click;
         if (btnOpenFolder != null) btnOpenFolder.Click += BtnOpenFolder_Click;
         if (btnPack != null) btnPack.Click += BtnPack_Click;
 
@@ -313,6 +315,40 @@ public partial class MainWindow : Window
                 if (btnOpenDv2 != null) btnOpenDv2.IsEnabled = true;
             }
         }
+    }
+
+    private async void BtnBatchUnpack_Click(object? sender, RoutedEventArgs e)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select Root Folder for Batch Unpack",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0) return;
+
+        string rootDir = folders[0].Path.LocalPath;
+        string[] dv2Files = Directory.GetFiles(rootDir, "*.dv2", SearchOption.AllDirectories);
+
+        Log($"Found {dv2Files.Length} archives. Starting batch unpack...");
+
+        foreach (var dv2Path in dv2Files)
+        {
+            string outDir = Path.Combine(Path.GetDirectoryName(dv2Path)!, Path.GetFileNameWithoutExtension(dv2Path) + "_extracted");
+            Log($"Unpacking: {Path.GetFileName(dv2Path)}...");
+            try
+            {
+                await Dv2Archive.UnpackAsync(dv2Path, outDir, (msg) => { });
+            }
+            catch (Exception ex)
+            {
+                Log($"Error unpacking {dv2Path}: {ex.Message}");
+            }
+        }
+        Log("Batch unpack finished.");
     }
 
     private async void BtnOpenFolder_Click(object? sender, RoutedEventArgs e)

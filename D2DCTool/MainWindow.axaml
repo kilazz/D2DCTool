@@ -6,6 +6,7 @@
 				<TextBlock Text="Unpack Archive" FontWeight="Bold"/>
 				<Button Name="BtnOpenDv2" Content="Open .DV2 Archive" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
 				<Button Name="BtnUnpack" Content="Extract All" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
+				<Button Name="BtnBatchUnpack" Content="Batch Unpack All .DV2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
 				<Separator Margin="0,5"/>
 				<TextBlock Text="Pack Archive" FontWeight="Bold"/>
 				<Button Name="BtnOpenFolder" Content="Select Folder" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
