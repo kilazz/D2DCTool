@@ -16,10 +16,16 @@ public class DdsToNifConverter
             using var br = new BinaryReader(fs);
 
             // 1. Read DDS header (128 bytes)
-            if (fs.Length < 128) throw new Exception("File is too small to be a DDS.");
+            if (fs.Length < 128)
+            {
+                throw new Exception("File is too small to be a DDS.");
+            }
 
             string magic = Encoding.ASCII.GetString(br.ReadBytes(4));
-            if (magic != "DDS ") throw new Exception("Invalid DDS magic signature.");
+            if (magic != "DDS ")
+            {
+                throw new Exception("Invalid DDS magic signature.");
+            }
 
             br.BaseStream.Position = 12;
             uint height = br.ReadUInt32();
@@ -37,7 +43,10 @@ public class DdsToNifConverter
             if (fourCC == "DXT1") { blockSize = 8; pixelFormat = 4; }
             else if (fourCC == "DXT3") { blockSize = 16; pixelFormat = 5; }
             else if (fourCC == "DXT5") { blockSize = 16; pixelFormat = 6; }
-            else throw new Exception($"Unsupported DDS format: {fourCC}. Only DXT1, DXT3, and DXT5 are supported.");
+            else
+            {
+                throw new Exception($"Unsupported DDS format: {fourCC}. Only DXT1, DXT3, and DXT5 are supported.");
+            }
 
             // If mipmaps are not specified, calculate their count (log2(max(w,h)) + 1)
             if (mipMapCount == 0)
@@ -186,7 +195,10 @@ public class DdsToNifConverter
             if (pixelFormat == 4) { fourCC = "DXT1"; blockSize = 8; }
             else if (pixelFormat == 5) { fourCC = "DXT3"; blockSize = 16; }
             else if (pixelFormat == 6) { fourCC = "DXT5"; blockSize = 16; }
-            else throw new Exception($"Unsupported pixel format in NIF: {pixelFormat}");
+            else
+            {
+                throw new Exception($"Unsupported pixel format in NIF: {pixelFormat}");
+            }
 
             // Skip:
             // BitsPerPixel (1)
@@ -246,8 +258,15 @@ public class DdsToNifConverter
 
             // Flags: DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT
             uint flags = 0x00000001 | 0x00000002 | 0x00000004 | 0x00001000;
-            if (mipMapCount > 1) flags |= 0x00020000; // DDSD_MIPMAPCOUNT
-            if (blockSize > 0) flags |= 0x00080000; // DDSD_LINEARSIZE
+            if (mipMapCount > 1)
+            {
+                flags |= 0x00020000; // DDSD_MIPMAPCOUNT
+            }
+
+            if (blockSize > 0)
+            {
+                flags |= 0x00080000; // DDSD_LINEARSIZE
+            }
 
             writer.Write(flags);
             writer.Write(height);
@@ -258,7 +277,10 @@ public class DdsToNifConverter
             writer.Write(0u); // Depth
             writer.Write(Math.Max(1, mipMapCount)); // MipMapCount (must be at least 1)
 
-            for (int i = 0; i < 11; i++) writer.Write(0u); // Reserved1
+            for (int i = 0; i < 11; i++)
+            {
+                writer.Write(0u); // Reserved1
+            }
 
             // DDS_PIXELFORMAT
             writer.Write(32u); // Size
@@ -272,7 +294,10 @@ public class DdsToNifConverter
 
             // DDS_HEADER_CAPS
             uint caps1 = 0x00001000; // DDSCAPS_TEXTURE
-            if (mipMapCount > 1) caps1 |= 0x00400008; // DDSCAPS_COMPLEX | DDSCAPS_MIPMAP
+            if (mipMapCount > 1)
+            {
+                caps1 |= 0x00400008; // DDSCAPS_COMPLEX | DDSCAPS_MIPMAP
+            }
 
             writer.Write(caps1); // Caps
             writer.Write(0u); // Caps2
@@ -375,7 +400,10 @@ public class DdsToNifConverter
                     break;
                 }
             }
-            if (match) return i;
+            if (match)
+            {
+                return i;
+            }
         }
         return -1;
     }

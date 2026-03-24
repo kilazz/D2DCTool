@@ -46,6 +46,9 @@
 				<Button Name="BtnBatchRepackXml" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
 					<TextBlock Text="Batch Repack Text -> Binary XML" TextWrapping="Wrap" TextAlignment="Center"/>
 				</Button>
+				<Button Name="BtnScanHashes" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+					<TextBlock Text="Scan XMLs for Unknown Hashes" TextWrapping="Wrap" TextAlignment="Center"/>
+				</Button>
 			</StackPanel>
 		</ScrollViewer>
 		<Border Grid.Row="1" Grid.Column="1" Background="#1E1E1E" CornerRadius="5" Margin="10,0,20,0" BorderBrush="#333333" BorderThickness="1">

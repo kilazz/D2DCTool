@@ -24,7 +24,7 @@ namespace D2DCTool
 
     public static class XmlConverter
     {
-        private static Dictionary<uint, string> _hashToString = new();
+        private static readonly Dictionary<uint, string> _hashToString = new();
 
         public static void LoadHashes(IEnumerable<string> strings)
         {
@@ -37,7 +37,11 @@ namespace D2DCTool
 
         public static uint GetHashValue(string text)
         {
-            if (string.IsNullOrEmpty(text)) return 0;
+            if (string.IsNullOrEmpty(text))
+            {
+                return 0;
+            }
+
             uint hash = 0;
             foreach (char c in text)
             {
@@ -82,7 +86,10 @@ namespace D2DCTool
                 {
                     char c = br.ReadChar();
                     headerStr += c;
-                    if (c == '\n') break;
+                    if (c == '\n')
+                    {
+                        break;
+                    }
                 }
 
                 if (!headerStr.StartsWith("Gamebryo File Format"))
@@ -154,7 +161,11 @@ namespace D2DCTool
                 string GetNextString()
                 {
                     int end = strOffset;
-                    while (end < stringBlock.Length && stringBlock[end] != 0) end++;
+                    while (end < stringBlock.Length && stringBlock[end] != 0)
+                    {
+                        end++;
+                    }
+
                     string s = Encoding.UTF8.GetString(stringBlock, strOffset, end - strOffset);
                     strOffset = end + 1;
 
@@ -165,10 +176,16 @@ namespace D2DCTool
                         foreach (char c in s)
                         {
                             bool isXmlChar = c == 0x9 || c == 0xA || c == 0xD || (c >= 0x20 && c <= 0xD7FF) || (c >= 0xE000 && c <= 0xFFFD);
-                            if (isXmlChar) sb.Append(c);
+                            if (isXmlChar)
+                            {
+                                sb.Append(c);
+                            }
                         }
                         s = sb.ToString();
-                        if (string.IsNullOrWhiteSpace(s)) s = "";
+                        if (string.IsNullOrWhiteSpace(s))
+                        {
+                            s = "";
+                        }
                     }
                     return s;
                 }
@@ -275,7 +292,10 @@ namespace D2DCTool
             try
             {
                 XDocument xmlDoc = XDocument.Load(xmlPath, LoadOptions.PreserveWhitespace);
-                if (xmlDoc.Root == null) throw new Exception("Invalid XML: No root element.");
+                if (xmlDoc.Root == null)
+                {
+                    throw new Exception("Invalid XML: No root element.");
+                }
 
                 GamebryoNode FromXml(XElement el)
                 {
@@ -304,7 +324,10 @@ namespace D2DCTool
                     if (valEl != null)
                     {
                         node.Value = valEl.Value;
-                        if (string.IsNullOrWhiteSpace(node.Value)) node.Value = "";
+                        if (string.IsNullOrWhiteSpace(node.Value))
+                        {
+                            node.Value = "";
+                        }
                     }
 
                     var attrsEl = el.Element("Attributes");
@@ -313,7 +336,10 @@ namespace D2DCTool
                         foreach (var aEl in attrsEl.Elements("Attr"))
                         {
                             string attrVal = aEl.Attribute("Value")!.Value;
-                            if (string.IsNullOrWhiteSpace(attrVal)) attrVal = "";
+                            if (string.IsNullOrWhiteSpace(attrVal))
+                            {
+                                attrVal = "";
+                            }
 
                             uint attrDataVal = 0;
                             var aNameAttr = aEl.Attribute("Name");
@@ -362,7 +388,10 @@ namespace D2DCTool
                 {
                     char c = br.ReadChar();
                     headerStr += c;
-                    if (c == '\n') break;
+                    if (c == '\n')
+                    {
+                        break;
+                    }
                 }
 
                 if (!headerStr.StartsWith("Gamebryo File Format"))
@@ -423,12 +452,26 @@ namespace D2DCTool
                 {
                     totalNodes++;
                     byte flags = 0;
-                    if (node.Children.Count > 0) flags |= 0x01;
-                    if (node.Attributes.Count > 0) flags |= 0x02;
-                    if (node.Value != null) flags |= 0x04;
+                    if (node.Children.Count > 0)
+                    {
+                        flags |= 0x01;
+                    }
+
+                    if (node.Attributes.Count > 0)
+                    {
+                        flags |= 0x02;
+                    }
+
+                    if (node.Value != null)
+                    {
+                        flags |= 0x04;
+                    }
 
                     bool compress = (node.Children.Count <= 255 && node.Attributes.Count <= 255);
-                    if (compress) flags |= 0x08;
+                    if (compress)
+                    {
+                        flags |= 0x08;
+                    }
 
                     nw.Write(flags);
                     WriteUInt32E(nw, node.Data, isLittleEndian);
@@ -441,8 +484,14 @@ namespace D2DCTool
 
                     if (node.Attributes.Count > 0)
                     {
-                        if (compress) nw.Write((byte)node.Attributes.Count);
-                        else WriteUInt32E(nw, (uint)node.Attributes.Count, isLittleEndian);
+                        if (compress)
+                        {
+                            nw.Write((byte)node.Attributes.Count);
+                        }
+                        else
+                        {
+                            WriteUInt32E(nw, (uint)node.Attributes.Count, isLittleEndian);
+                        }
 
                         foreach (var attr in node.Attributes)
                         {
@@ -455,8 +504,14 @@ namespace D2DCTool
 
                     if (node.Children.Count > 0)
                     {
-                        if (compress) nw.Write((byte)node.Children.Count);
-                        else WriteUInt32E(nw, (uint)node.Children.Count, isLittleEndian);
+                        if (compress)
+                        {
+                            nw.Write((byte)node.Children.Count);
+                        }
+                        else
+                        {
+                            WriteUInt32E(nw, (uint)node.Children.Count, isLittleEndian);
+                        }
 
                         foreach (var child in node.Children)
                         {

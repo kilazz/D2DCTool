@@ -31,43 +31,120 @@ public partial class MainWindow : Window
         var btnPack = this.FindControl<Button>("BtnPack");
         var fileTree = this.FindControl<TreeView>("FileTree");
 
-        if (btnOpenDv2 != null) btnOpenDv2.Click += BtnOpenDv2_Click;
-        if (btnUnpack != null) btnUnpack.Click += BtnUnpack_Click;
-        if (btnBatchUnpack != null) btnBatchUnpack.Click += BtnBatchUnpack_Click;
-        if (btnOpenFolder != null) btnOpenFolder.Click += BtnOpenFolder_Click;
-        if (btnPack != null) btnPack.Click += BtnPack_Click;
+        if (btnOpenDv2 != null)
+        {
+            btnOpenDv2.Click += BtnOpenDv2_Click;
+        }
+
+        if (btnUnpack != null)
+        {
+            btnUnpack.Click += BtnUnpack_Click;
+        }
+
+        if (btnBatchUnpack != null)
+        {
+            btnBatchUnpack.Click += BtnBatchUnpack_Click;
+        }
+
+        if (btnOpenFolder != null)
+        {
+            btnOpenFolder.Click += BtnOpenFolder_Click;
+        }
+
+        if (btnPack != null)
+        {
+            btnPack.Click += BtnPack_Click;
+        }
 
         var btnConvertDds = this.FindControl<Button>("BtnConvertDds");
-        if (btnConvertDds != null) btnConvertDds.Click += BtnConvertDds_Click;
+        if (btnConvertDds != null)
+        {
+            btnConvertDds.Click += BtnConvertDds_Click;
+        }
 
         var btnExtractNif = this.FindControl<Button>("BtnExtractNif");
-        if (btnExtractNif != null) btnExtractNif.Click += BtnExtractNif_Click;
+        if (btnExtractNif != null)
+        {
+            btnExtractNif.Click += BtnExtractNif_Click;
+        }
 
         var btnBatchDdsToNif = this.FindControl<Button>("BtnBatchDdsToNif");
-        if (btnBatchDdsToNif != null) btnBatchDdsToNif.Click += BtnBatchDdsToNif_Click;
+        if (btnBatchDdsToNif != null)
+        {
+            btnBatchDdsToNif.Click += BtnBatchDdsToNif_Click;
+        }
 
         var btnBatchNifToDds = this.FindControl<Button>("BtnBatchNifToDds");
-        if (btnBatchNifToDds != null) btnBatchNifToDds.Click += BtnBatchNifToDds_Click;
+        if (btnBatchNifToDds != null)
+        {
+            btnBatchNifToDds.Click += BtnBatchNifToDds_Click;
+        }
 
         var btnExtractXml = this.FindControl<Button>("BtnExtractXml");
-        if (btnExtractXml != null) btnExtractXml.Click += BtnExtractXml_Click;
+        if (btnExtractXml != null)
+        {
+            btnExtractXml.Click += BtnExtractXml_Click;
+        }
 
         var btnRepackXml = this.FindControl<Button>("BtnRepackXml");
-        if (btnRepackXml != null) btnRepackXml.Click += BtnRepackXml_Click;
+        if (btnRepackXml != null)
+        {
+            btnRepackXml.Click += BtnRepackXml_Click;
+        }
 
         var btnBatchExtractXml = this.FindControl<Button>("BtnBatchExtractXml");
-        if (btnBatchExtractXml != null) btnBatchExtractXml.Click += BtnBatchExtractXml_Click;
+        if (btnBatchExtractXml != null)
+        {
+            btnBatchExtractXml.Click += BtnBatchExtractXml_Click;
+        }
 
         var btnBatchRepackXml = this.FindControl<Button>("BtnBatchRepackXml");
-        if (btnBatchRepackXml != null) btnBatchRepackXml.Click += BtnBatchRepackXml_Click;
+        if (btnBatchRepackXml != null)
+        {
+            btnBatchRepackXml.Click += BtnBatchRepackXml_Click;
+        }
 
-        if (fileTree != null) fileTree.ItemsSource = _treeItems;
+        var btnScanHashes = this.FindControl<Button>("BtnScanHashes");
+        if (btnScanHashes != null)
+        {
+            btnScanHashes.Click += BtnScanHashes_Click;
+        }
+
+        if (fileTree != null)
+        {
+            fileTree.ItemsSource = _treeItems;
+        }
+    }
+
+    private async void BtnScanHashes_Click(object? sender, RoutedEventArgs e)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null)
+        {
+            return;
+        }
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select folder containing XML files to scan",
+            AllowMultiple = false
+        });
+
+        if (folders.Count > 0)
+        {
+            string folderPath = folders[0].Path.LocalPath;
+            Log($"Starting hash scan in {folderPath}...");
+            await HashScanner.ScanAndVerifyAsync(folderPath, Log);
+        }
     }
 
     private async void BtnExtractXml_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -96,7 +173,10 @@ public partial class MainWindow : Window
     private async void BtnRepackXml_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var txtFiles = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -105,7 +185,11 @@ public partial class MainWindow : Window
             FileTypeFilter = new[] { new FilePickerFileType("Readable XML Files") { Patterns = new[] { "*.xml" } } }
         });
 
-        if (txtFiles.Count == 0) return;
+        if (txtFiles.Count == 0)
+        {
+            return;
+        }
+
         string txtPath = txtFiles[0].Path.LocalPath;
 
         var xmlFiles = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -115,7 +199,11 @@ public partial class MainWindow : Window
             FileTypeFilter = new[] { new FilePickerFileType("Binary XML Files") { Patterns = new[] { "*.xml" } } }
         });
 
-        if (xmlFiles.Count == 0) return;
+        if (xmlFiles.Count == 0)
+        {
+            return;
+        }
+
         string originalXmlPath = xmlFiles[0].Path.LocalPath;
 
         var saveFile = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -144,7 +232,10 @@ public partial class MainWindow : Window
     private async void BtnBatchExtractXml_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -168,10 +259,17 @@ public partial class MainWindow : Window
 
             foreach (var xmlPath in xmlFiles)
             {
-                if (xmlPath.EndsWith(".txt.xml", StringComparison.OrdinalIgnoreCase)) continue; // Skip already extracted ones
+                if (xmlPath.EndsWith(".txt.xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue; // Skip already extracted ones
+                }
+
                 string txtPath = Path.ChangeExtension(xmlPath, ".txt.xml");
                 bool success = await XmlConverter.ExtractBinaryXmlToRealXmlAsync(xmlPath, txtPath, Log);
-                if (success) successCount++;
+                if (success)
+                {
+                    successCount++;
+                }
             }
 
             Log($"Batch extraction complete! Successfully extracted {successCount} files.");
@@ -181,7 +279,10 @@ public partial class MainWindow : Window
     private async void BtnBatchRepackXml_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -209,7 +310,10 @@ public partial class MainWindow : Window
             foreach (var txtPath in txtFiles)
             {
                 // Skip files that are already inside the Repacked_XML folder
-                if (txtPath.StartsWith(outDir, StringComparison.OrdinalIgnoreCase)) continue;
+                if (txtPath.StartsWith(outDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
 
                 string relativePath = Path.GetRelativePath(folderPath, txtPath);
                 string relativeDir = Path.GetDirectoryName(relativePath) ?? "";
@@ -228,7 +332,10 @@ public partial class MainWindow : Window
                 }
 
                 bool success = await XmlConverter.RepackRealXmlToBinaryXmlAsync(originalXmlPath, txtPath, outXmlPath, Log);
-                if (success) successCount++;
+                if (success)
+                {
+                    successCount++;
+                }
             }
 
             Log($"Batch repack complete! Successfully repacked {successCount} files into 'Repacked_XML' folder.");
@@ -240,14 +347,20 @@ public partial class MainWindow : Window
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var txtLog = this.FindControl<TextBlock>("TxtLog");
-            if (txtLog != null) txtLog.Text = message;
+            if (txtLog != null)
+            {
+                txtLog.Text = message;
+            }
         });
     }
 
     private async void BtnOpenDv2_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -263,8 +376,15 @@ public partial class MainWindow : Window
 
             var btnUnpack = this.FindControl<Button>("BtnUnpack");
             var btnPack = this.FindControl<Button>("BtnPack");
-            if (btnUnpack != null) btnUnpack.IsEnabled = true;
-            if (btnPack != null) btnPack.IsEnabled = false;
+            if (btnUnpack != null)
+            {
+                btnUnpack.IsEnabled = true;
+            }
+
+            if (btnPack != null)
+            {
+                btnPack.IsEnabled = false;
+            }
 
             try
             {
@@ -281,10 +401,16 @@ public partial class MainWindow : Window
 
     private async void BtnUnpack_Click(object? sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrEmpty(_currentDv2Path)) return;
+        if (string.IsNullOrEmpty(_currentDv2Path))
+        {
+            return;
+        }
 
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -298,8 +424,15 @@ public partial class MainWindow : Window
             var btnUnpack = this.FindControl<Button>("BtnUnpack");
             var btnOpenDv2 = this.FindControl<Button>("BtnOpenDv2");
 
-            if (btnUnpack != null) btnUnpack.IsEnabled = false;
-            if (btnOpenDv2 != null) btnOpenDv2.IsEnabled = false;
+            if (btnUnpack != null)
+            {
+                btnUnpack.IsEnabled = false;
+            }
+
+            if (btnOpenDv2 != null)
+            {
+                btnOpenDv2.IsEnabled = false;
+            }
 
             try
             {
@@ -311,8 +444,15 @@ public partial class MainWindow : Window
             }
             finally
             {
-                if (btnUnpack != null) btnUnpack.IsEnabled = true;
-                if (btnOpenDv2 != null) btnOpenDv2.IsEnabled = true;
+                if (btnUnpack != null)
+                {
+                    btnUnpack.IsEnabled = true;
+                }
+
+                if (btnOpenDv2 != null)
+                {
+                    btnOpenDv2.IsEnabled = true;
+                }
             }
         }
     }
@@ -320,7 +460,10 @@ public partial class MainWindow : Window
     private async void BtnBatchUnpack_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -328,7 +471,10 @@ public partial class MainWindow : Window
             AllowMultiple = false
         });
 
-        if (folders.Count == 0) return;
+        if (folders.Count == 0)
+        {
+            return;
+        }
 
         string rootDir = folders[0].Path.LocalPath;
         string[] dv2Files = Directory.GetFiles(rootDir, "*.dv2", SearchOption.AllDirectories);
@@ -354,7 +500,10 @@ public partial class MainWindow : Window
     private async void BtnOpenFolder_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -368,8 +517,15 @@ public partial class MainWindow : Window
 
             var btnUnpack = this.FindControl<Button>("BtnUnpack");
             var btnPack = this.FindControl<Button>("BtnPack");
-            if (btnUnpack != null) btnUnpack.IsEnabled = false;
-            if (btnPack != null) btnPack.IsEnabled = true;
+            if (btnUnpack != null)
+            {
+                btnUnpack.IsEnabled = false;
+            }
+
+            if (btnPack != null)
+            {
+                btnPack.IsEnabled = true;
+            }
 
             try
             {
@@ -385,10 +541,16 @@ public partial class MainWindow : Window
 
     private async void BtnPack_Click(object? sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrEmpty(_currentFolderPath)) return;
+        if (string.IsNullOrEmpty(_currentFolderPath))
+        {
+            return;
+        }
 
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
@@ -420,8 +582,15 @@ public partial class MainWindow : Window
             var btnPack = this.FindControl<Button>("BtnPack");
             var btnOpenFolder = this.FindControl<Button>("BtnOpenFolder");
 
-            if (btnPack != null) btnPack.IsEnabled = false;
-            if (btnOpenFolder != null) btnOpenFolder.IsEnabled = false;
+            if (btnPack != null)
+            {
+                btnPack.IsEnabled = false;
+            }
+
+            if (btnOpenFolder != null)
+            {
+                btnOpenFolder.IsEnabled = false;
+            }
 
             try
             {
@@ -433,8 +602,15 @@ public partial class MainWindow : Window
             }
             finally
             {
-                if (btnPack != null) btnPack.IsEnabled = true;
-                if (btnOpenFolder != null) btnOpenFolder.IsEnabled = true;
+                if (btnPack != null)
+                {
+                    btnPack.IsEnabled = true;
+                }
+
+                if (btnOpenFolder != null)
+                {
+                    btnOpenFolder.IsEnabled = true;
+                }
             }
         }
     }
@@ -442,7 +618,10 @@ public partial class MainWindow : Window
     private async void BtnConvertDds_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -471,7 +650,10 @@ public partial class MainWindow : Window
     private async void BtnExtractNif_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -504,7 +686,10 @@ public partial class MainWindow : Window
     private async void BtnBatchDdsToNif_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -523,7 +708,10 @@ public partial class MainWindow : Window
     private async void BtnBatchNifToDds_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
@@ -547,76 +735,25 @@ public partial class MainWindow : Window
         var rootNode = new FileTreeNode { Name = Path.GetFileName(_currentDv2Path) ?? "Archive", IsDirectory = true };
         _treeItems.Add(rootNode);
 
-        var dict = new Dictionary<string, FileTreeNode>(StringComparer.OrdinalIgnoreCase);
-        dict[""] = rootNode;
-
-        foreach (var entry in entries)
+        var dict = new Dictionary<string, FileTreeNode>(StringComparer.OrdinalIgnoreCase); dict[""] = rootNode; foreach (var entry in entries)
         {
-            string[] parts = entry.Name.Split(PathSeparators, StringSplitOptions.RemoveEmptyEntries);
-            string currentPath = "";
-            FileTreeNode parent = rootNode;
-
-            for (int i = 0; i < parts.Length; i++)
+            string[] parts = entry.Name.Split(PathSeparators, StringSplitOptions.RemoveEmptyEntries); string currentPath = ""; FileTreeNode parent = rootNode; for (int i = 0; i
+                                                                                                                < parts.Length; i++)
             {
-                string part = parts[i];
-                string newPath = string.IsNullOrEmpty(currentPath) ? part : currentPath + "\\" + part;
-
-                if (!dict.TryGetValue(newPath, out var node))
+                string part = parts[i]; string newPath = string.IsNullOrEmpty(currentPath) ? part : currentPath + "\\" + part; if (!dict.TryGetValue(newPath, out var node))
                 {
                     node = new FileTreeNode
                     {
                         Name = part,
                         FullPath = newPath,
-                        IsDirectory = i < parts.Length - 1
-                    };
-                    parent.Children.Add(node);
-                    dict[newPath] = node;
+                        IsDirectory = i
+                                                                                                                < parts.Length - 1
+                    }; parent.Children.Add(node); dict[newPath] = node;
                 }
-                parent = node;
-                currentPath = newPath;
+                parent = node; currentPath = newPath;
             }
         }
     }
-
-    private void BuildTreeFromDirectory(string dirPath)
-    {
-        _treeItems.Clear();
-        var rootNode = new FileTreeNode { Name = Path.GetFileName(dirPath) ?? "Folder", IsDirectory = true, FullPath = dirPath };
-        _treeItems.Add(rootNode);
-
-        PopulateDirectoryNode(rootNode, dirPath);
-    }
-
-    private void PopulateDirectoryNode(FileTreeNode parentNode, string dirPath)
-    {
-        try
-        {
-            foreach (var dir in Directory.GetDirectories(dirPath))
-            {
-                var node = new FileTreeNode
-                {
-                    Name = Path.GetFileName(dir),
-                    FullPath = dir,
-                    IsDirectory = true
-                };
-                parentNode.Children.Add(node);
-                PopulateDirectoryNode(node, dir);
-            }
-
-            foreach (var file in Directory.GetFiles(dirPath))
-            {
-                var node = new FileTreeNode
-                {
-                    Name = Path.GetFileName(file),
-                    FullPath = file,
-                    IsDirectory = false
-                };
-                parentNode.Children.Add(node);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"Error reading directory {dirPath}: {ex.Message}");
-        }
-    }
+    private void BuildTreeFromDirectory(string dirPath) { _treeItems.Clear(); var rootNode = new FileTreeNode { Name = Path.GetFileName(dirPath) ?? "Folder", IsDirectory = true, FullPath = dirPath }; _treeItems.Add(rootNode); PopulateDirectoryNode(rootNode, dirPath); }
+    private void PopulateDirectoryNode(FileTreeNode parentNode, string dirPath) { try { foreach (var dir in Directory.GetDirectories(dirPath)) { var node = new FileTreeNode { Name = Path.GetFileName(dir), FullPath = dir, IsDirectory = true }; parentNode.Children.Add(node); PopulateDirectoryNode(node, dir); } foreach (var file in Directory.GetFiles(dirPath)) { var node = new FileTreeNode { Name = Path.GetFileName(file), FullPath = file, IsDirectory = false }; parentNode.Children.Add(node); } } catch (Exception ex) { Log($"Error reading directory {dirPath}: {ex.Message}"); } }
 }

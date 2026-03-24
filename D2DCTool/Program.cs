@@ -3,7 +3,7 @@ using System;
 
 namespace D2DCTool;
 
-class Program
+internal class Program
 {
     [STAThread]
     public static void Main(string[] args)
@@ -17,8 +17,10 @@ class Program
     }
 
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
+    {
+        return AppBuilder.Configure<App>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace();
+    }
 }

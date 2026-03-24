@@ -28,7 +28,9 @@ public class Dv2Archive
 
             uint version = br.ReadUInt32();
             if (version != 4 && version != 5)
+            {
                 throw new Exception($"Unsupported DV2 version: {version}");
+            }
 
             if (version == 5)
             {
@@ -50,7 +52,10 @@ public class Dv2Archive
                 if (nameBytes[i] == 0)
                 {
                     if (i > currentStart)
+                    {
                         names.Add(Encoding.UTF8.GetString(nameBytes, currentStart, i - currentStart));
+                    }
+
                     currentStart = i + 1;
                 }
             }
@@ -58,21 +63,10 @@ public class Dv2Archive
             uint fileCount = br.ReadUInt32();
             var entries = new List<Dv2Entry>();
 
-            for (int i = 0; i < fileCount; i++)
-            {
-                entries.Add(new Dv2Entry
-                {
-                    Name = names[i],
-                    StartOffset = br.ReadUInt32(),
-                    CompressedSize = br.ReadUInt32(),
-                    UncompressedSize = br.ReadUInt32()
-                });
-            }
-
+            for (int i = 0; i < fileCount; i++) { entries.Add(new Dv2Entry { Name = names[i], StartOffset = br.ReadUInt32(), CompressedSize = br.ReadUInt32(), UncompressedSize = br.ReadUInt32() }); }
             return entries;
         });
     }
-
     public static async Task UnpackAsync(string dv2Path, string outDir, Action<string> onProgress)
     {
         await Task.Run(() =>
@@ -82,7 +76,9 @@ public class Dv2Archive
 
             uint version = br.ReadUInt32();
             if (version != 4 && version != 5)
+            {
                 throw new Exception($"Unsupported DV2 version: {version}");
+            }
 
             if (version == 5)
             {
@@ -104,7 +100,10 @@ public class Dv2Archive
                 if (nameBytes[i] == 0)
                 {
                     if (i > currentStart)
+                    {
                         names.Add(Encoding.UTF8.GetString(nameBytes, currentStart, i - currentStart));
+                    }
+
                     currentStart = i + 1;
                 }
             }
@@ -112,31 +111,11 @@ public class Dv2Archive
             uint fileCount = br.ReadUInt32();
             var entries = new List<Dv2Entry>();
 
-            for (int i = 0; i < fileCount; i++)
+            for (int i = 0; i < fileCount; i++) { entries.Add(new Dv2Entry { Name = names[i], StartOffset = br.ReadUInt32(), CompressedSize = br.ReadUInt32(), UncompressedSize = br.ReadUInt32() }); }
+            Directory.CreateDirectory(outDir); for (int i = 0; i
+                                < entries.Count; i++)
             {
-                entries.Add(new Dv2Entry
-                {
-                    Name = names[i],
-                    StartOffset = br.ReadUInt32(),
-                    CompressedSize = br.ReadUInt32(),
-                    UncompressedSize = br.ReadUInt32()
-                });
-            }
-
-            Directory.CreateDirectory(outDir);
-
-            for (int i = 0; i < entries.Count; i++)
-            {
-                var entry = entries[i];
-                onProgress?.Invoke($"Extracting ({i + 1}/{entries.Count}): {entry.Name}");
-
-                string outPath = Path.Combine(outDir, entry.Name.Replace('\\', Path.DirectorySeparatorChar));
-                Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-
-                fs.Position = dataStartOffset + entry.StartOffset;
-                using var outStream = File.Create(outPath);
-
-                if (entry.UncompressedSize > 0) // Compressed with Zlib
+                var entry = entries[i]; onProgress?.Invoke($"Extracting ({i + 1} {entries.Count}): {entry.Name}"); string outPath = Path.Combine(outDir, entry.Name.Replace('\\', Path.DirectorySeparatorChar)); Directory.CreateDirectory(Path.GetDirectoryName(outPath)!); fs.Position = dataStartOffset + entry.StartOffset; using var outStream = File.Create(outPath); if (entry.UncompressedSize > 0) // Compressed with Zlib
                 {
                     using var zlib = new ZLibStream(fs, CompressionMode.Decompress, leaveOpen: true);
                     byte[] buffer = new byte[8192];
@@ -212,58 +191,22 @@ public class Dv2Archive
 
             uint currentOffset = 0;
 
-            for (int i = 0; i < files.Length; i++)
-            {
-                onProgress?.Invoke($"Packing ({i + 1}/{files.Length}): {entries[i].Name}");
-
-                entries[i].StartOffset = currentOffset;
-                using var inStream = File.OpenRead(files[i]);
-                long fileLength = inStream.Length;
-
-                if (compress)
-                {
-                    entries[i].UncompressedSize = (uint)fileLength;
-                    long startPos = fs.Position;
-                    using (var zlib = new ZLibStream(fs, compLevel, leaveOpen: true))
-                    {
-                        inStream.CopyTo(zlib);
-                    }
-                    entries[i].CompressedSize = (uint)(fs.Position - startPos);
-                }
-                else
-                {
-                    entries[i].UncompressedSize = 0;
-                    entries[i].CompressedSize = (uint)fileLength;
-                    inStream.CopyTo(fs);
-                }
-
-                currentOffset += entries[i].CompressedSize;
-
-                if (!compress)
-                {
-                    long paddedPos = GetNextBoundary(fs.Position);
-                    currentOffset += (uint)(paddedPos - fs.Position);
-                    PadTo(fs, paddedPos);
-                }
-            }
-
-            fs.Position = dirPosition;
-            foreach (var entry in entries)
-            {
-                bw.Write(entry.StartOffset);
-                bw.Write(entry.CompressedSize);
-                bw.Write(entry.UncompressedSize);
-            }
-
+            for (int i = 0; i < files.Length; i++) { onProgress?.Invoke($"Packing ({i + 1} {files.Length}): {entries[i].Name}"); entries[i].StartOffset = currentOffset; using var inStream = File.OpenRead(files[i]); long fileLength = inStream.Length; if (compress) { entries[i].UncompressedSize = (uint)fileLength; long startPos = fs.Position; using (var zlib = new ZLibStream(fs, compLevel, leaveOpen: true)) { inStream.CopyTo(zlib); } entries[i].CompressedSize = (uint)(fs.Position - startPos); } else { entries[i].UncompressedSize = 0; entries[i].CompressedSize = (uint)fileLength; inStream.CopyTo(fs); } currentOffset += entries[i].CompressedSize; if (!compress) { long paddedPos = GetNextBoundary(fs.Position); currentOffset += (uint)(paddedPos - fs.Position); PadTo(fs, paddedPos); } }
+            fs.Position = dirPosition; foreach (var entry in entries) { bw.Write(entry.StartOffset); bw.Write(entry.CompressedSize); bw.Write(entry.UncompressedSize); }
             onProgress?.Invoke("Pack complete!");
         });
     }
-
-    private static long GetNextBoundary(long pos) => (pos + BoundarySize - 1) / BoundarySize * BoundarySize;
+    private static long GetNextBoundary(long pos)
+    {
+        return (pos + BoundarySize - 1) / BoundarySize * BoundarySize;
+    }
 
     private static void PadTo(Stream stream, long targetPosition)
     {
         long diff = targetPosition - stream.Position;
-        if (diff > 0) stream.Write(new byte[diff]);
+        if (diff > 0)
+        {
+            stream.Write(new byte[diff]);
+        }
     }
 }
