@@ -1,5 +1,5 @@
 # D2DCTool
-A cross-platform utility for **Divinity 2 Developer's Cut** modding.
+Utility for **Divinity 2 Developer's Cut** modding.
 
 ## Features
 *   **Archive Tools (.dv2):** Extract and pack game archives with Zlib compression support.
