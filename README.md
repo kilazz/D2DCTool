@@ -1,4 +1,4 @@
-# D2DCTool
+## D2DCTool
 Utility for **Divinity 2 Developer's Cut** modding, written in Rust and powered by the Slint GUI framework.
 
 ## Features
@@ -26,13 +26,8 @@ Utility for **Divinity 2 Developer's Cut** modding, written in Rust and powered 
 *   Install [Rust & Cargo](https://www.rust-lang.org/tools/install).
 
 ### Compilation
-Open your terminal in the project's root directory and run:
-
-# Run the application in development mode
+*   Open your terminal in the project's root directory and run:
 ```
 cargo run
-```
-# Build the optimized release binary
-```
 cargo build --release
 ```
