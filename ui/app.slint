@@ -1,0 +1,365 @@
+import { LineEdit, StandardListView, ListView, ComboBox, SpinBox, TextEdit, CheckBox } from "std-widgets.slint";
+
+component ToolButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    height: 35px;
+    background: !enabled ? #181818 : (ta.has-hover ? #3E3E42 : #252526);
+    border-color: !enabled ? #222222 : (ta.has-hover ? #555555 : #333333);
+    border-width: 1px;
+    border-radius: 4px;
+
+    Text {
+        text: root.text;
+        color: !root.enabled ? #555555 : (ta.has-hover ? #FFFFFF : #CCCCCC);
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+        width: parent.width - 20px;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "D2DC Tool";
+    min-width: 1020px;
+    min-height: 720px;
+    preferred-width: 1020px;
+    preferred-height: 720px;
+    background: #141414;
+
+    in-out property <int> active_tab: 0;
+    in-out property <string> selected_dv2: "";
+    in-out property <string> selected_folder: "";
+    in-out property <string> selected_xml: "";
+    in-out property <string> selected_txt_xml: "";
+    in-out property <string> selected_dds: "";
+    in-out property <string> selected_nif: "";
+
+    in-out property <bool> compress_archive: true;
+    in-out property <string> compression_level: "Optimal (Zlib Level 6)";
+
+    in-out property <string> log_text: "System Ready.\n";
+    in-out property <string> status_msg: "Ready.";
+    in-out property <[StandardListViewItem]> archive_files: [];
+
+    callback browse_file(string) -> string;
+    callback browse_folder() -> string;
+    callback save_file(string) -> string;
+
+    callback unpack_dv2(string, string);
+    callback pack_dv2(string, string, bool, string);
+    callback batch_unpack_dv2(string);
+
+    callback convert_dds_to_nif(string, string);
+    callback extract_nif_to_dds(string, string);
+    callback batch_dds_to_nif(string);
+    callback batch_nif_to_dds(string);
+
+    callback extract_binary_xml(string, string);
+    callback repack_readable_xml(string, string, string);
+    callback batch_extract_xml(string);
+    callback batch_repack_xml(string);
+    callback scan_hashes(string);
+
+    callback archive_item_clicked(int);
+
+    VerticalLayout {
+        padding: 15px;
+        spacing: 15px;
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 35px;
+            height: 35px;
+
+            Text {
+                text: "ARCHIVE (DV2)";
+                font-size: 14px;
+                font-weight: root.active_tab == 0 ? 800 : 500;
+                color: root.active_tab == 0 ? #FFFFFF : #6F6F6F;
+                vertical-alignment: center;
+                TouchArea { clicked => { root.active_tab = 0; } }
+            }
+            Text {
+                text: "TEXTURES (DDS/NIF)";
+                font-size: 14px;
+                font-weight: root.active_tab == 1 ? 800 : 500;
+                color: root.active_tab == 1 ? #FFFFFF : #6F6F6F;
+                vertical-alignment: center;
+                TouchArea { clicked => { root.active_tab = 1; } }
+            }
+            Text {
+                text: "XML & HASHES";
+                font-size: 14px;
+                font-weight: root.active_tab == 2 ? 800 : 500;
+                color: root.active_tab == 2 ? #FFFFFF : #6F6F6F;
+                vertical-alignment: center;
+                TouchArea { clicked => { root.active_tab = 2; } }
+            }
+            Text {
+                text: "TERMINAL";
+                font-size: 14px;
+                font-weight: root.active_tab == 3 ? 800 : 500;
+                color: root.active_tab == 3 ? #FFFFFF : #6F6F6F;
+                vertical-alignment: center;
+                TouchArea { clicked => { root.active_tab = 3; } }
+            }
+        }
+
+        Text {
+            text: root.active_tab == 0 ? "Divinity 2 DV2 Archive Tool" :
+                  (root.active_tab == 1 ? "Gamebryo DDS/NIF Converter" :
+                  (root.active_tab == 2 ? "Binary XML Tool & Hash Scanner" : "Progress Terminal"));
+            font-size: 26px;
+            font-weight: 800;
+            color: #FFFFFF;
+            horizontal-alignment: center;
+            height: 35px;
+        }
+
+        HorizontalLayout {
+            spacing: 20px;
+
+            Rectangle {
+                width: 440px;
+                background: #1C1C1C;
+                border-color: #2C2C2C;
+                border-width: 1px;
+                border-radius: 8px;
+
+                if (root.active_tab == 0) : VerticalLayout {
+                    spacing: 12px;
+                    padding: 18px;
+
+                    Text { text: "Unpack Archive"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: root.selected_dv2 == "" ? "Open .DV2 Archive" : "Selected: " + root.selected_dv2;
+                        clicked => { root.selected_dv2 = root.browse_file("dv2"); }
+                    }
+                    ToolButton {
+                        text: "Extract All";
+                        enabled: root.selected_dv2 != "";
+                        clicked => {
+                            let out_path = root.browse_folder();
+                            if (out_path != "") { root.unpack_dv2(root.selected_dv2, out_path); }
+                        }
+                    }
+                    ToolButton {
+                        text: "Batch Unpack All .DV2";
+                        clicked => {
+                            let root_folder = root.browse_folder();
+                            if (root_folder != "") { root.batch_unpack_dv2(root_folder); }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: #2C2C2C; }
+
+                    Text { text: "Pack Archive"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: root.selected_folder == "" ? "Select Folder to Pack" : "Selected Folder: " + root.selected_folder;
+                        clicked => { root.selected_folder = root.browse_folder(); }
+                    }
+                    CheckBox {
+                        text: "Use Zlib Compression";
+                        checked <=> root.compress_archive;
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Text { text: "Level:"; color: #AAAAAA; vertical-alignment: center; width: 65px; }
+                        ComboBox {
+                            model: ["Optimal (Zlib Level 6)", "Smallest Size (Zlib Level 9)", "Fastest (Zlib Level 1)", "No Compression (Zlib Level 0)"];
+                            current-value <=> root.compression_level;
+                            enabled: root.compress_archive;
+                        }
+                    }
+                    ToolButton {
+                        text: "Pack to .DV2";
+                        enabled: root.selected_folder != "";
+                        clicked => {
+                            let target = root.save_file("dv2");
+                            if (target != "") { root.pack_dv2(root.selected_folder, target, root.compress_archive, root.compression_level); }
+                        }
+                    }
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                if (root.active_tab == 1) : VerticalLayout {
+                    spacing: 14px;
+                    padding: 18px;
+
+                    Text { text: "DDS & NIF Conversions"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: root.selected_dds == "" ? "Select DDS File" : "Selected DDS: " + root.selected_dds;
+                        clicked => { root.selected_dds = root.browse_file("dds"); }
+                    }
+                    ToolButton {
+                        text: "Convert DDS to NIF";
+                        enabled: root.selected_dds != "";
+                        clicked => {
+                            let out_nif = root.save_file("nif");
+                            if (out_nif != "") { root.convert_dds_to_nif(root.selected_dds, out_nif); }
+                        }
+                    }
+                    ToolButton {
+                        text: root.selected_nif == "" ? "Select NIF File" : "Selected NIF: " + root.selected_nif;
+                        clicked => { root.selected_nif = root.browse_file("nif"); }
+                    }
+                    ToolButton {
+                        text: "Extract NIF to DDS";
+                        enabled: root.selected_nif != "";
+                        clicked => {
+                            let out_dds = root.save_file("dds");
+                            if (out_dds != "") { root.extract_nif_to_dds(root.selected_nif, out_dds); }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: #2C2C2C; }
+
+                    Text { text: "Batch Utilities"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: "Batch Convert DDS -> NIF";
+                        clicked => {
+                            let path = root.browse_folder();
+                            if (path != "") { root.batch_dds_to_nif(path); }
+                        }
+                    }
+                    ToolButton {
+                        text: "Batch Extract NIF -> DDS";
+                        clicked => {
+                            let path = root.browse_folder();
+                            if (path != "") { root.batch_nif_to_dds(path); }
+                        }
+                    }
+                    Rectangle { vertical-stretch: 1; }
+                }
+
+                if (root.active_tab == 2) : VerticalLayout {
+                    spacing: 14px;
+                    padding: 18px;
+
+                    Text { text: "Single XML Operations"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: root.selected_xml == "" ? "Select Binary XML (.xml)" : "Binary XML: " + root.selected_xml;
+                        clicked => { root.selected_xml = root.browse_file("xml"); }
+                    }
+                    ToolButton {
+                        text: "Extract Binary XML to Text XML";
+                        enabled: root.selected_xml != "";
+                        clicked => {
+                            let out_xml = root.save_file("xml");
+                            if (out_xml != "") { root.extract_binary_xml(root.selected_xml, out_xml); }
+                        }
+                    }
+                    ToolButton {
+                        text: root.selected_txt_xml == "" ? "Select Edited Text XML (.xml)" : "Text XML: " + root.selected_txt_xml;
+                        clicked => { root.selected_txt_xml = root.browse_file("xml"); }
+                    }
+                    ToolButton {
+                        text: "Repack Text XML to Binary XML";
+                        enabled: root.selected_txt_xml != "" && root.selected_xml != "";
+                        clicked => {
+                            let out_nif = root.save_file("xml");
+                            if (out_nif != "") { root.repack_readable_xml(root.selected_xml, root.selected_txt_xml, out_nif); }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: #2C2C2C; }
+
+                    Text { text: "Batch XML & Scanner"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    ToolButton {
+                        text: "Batch Extract Binary -> Text XML";
+                        clicked => {
+                            let folder = root.browse_folder();
+                            if (folder != "") { root.batch_extract_xml(folder); }
+                        }
+                    }
+                    ToolButton {
+                        text: "Batch Repack Text -> Binary XML";
+                        clicked => {
+                            let folder = root.browse_folder();
+                            if (folder != "") { root.batch_repack_xml(folder); }
+                        }
+                    }
+                    ToolButton {
+                        text: "Scan XMLs for Unknown Hashes";
+                        clicked => {
+                            let folder = root.browse_folder();
+                            if (folder != "") { root.scan_hashes(folder); }
+                        }
+                    }
+                }
+
+                if (root.active_tab == 3) : VerticalLayout {
+                    alignment: center;
+                    padding: 18px;
+                    Text {
+                        text: "Terminal logs are displayed in full space on the right.";
+                        color: #666666;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            Rectangle {
+                background: #1C1C1C;
+                border-color: #2C2C2C;
+                border-width: 1px;
+                border-radius: 8px;
+
+                if (root.active_tab == 0 || root.active_tab == 1 || root.active_tab == 2) : VerticalLayout {
+                    padding: 10px;
+                    ListView {
+                        for item[index] in root.archive_files: Rectangle {
+                            height: 24px;
+                            background: ta.has-hover ? #2D2D2D : (Math.mod(index, 2) == 0 ? #1E1E1E : #1C1C1C);
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                Text {
+                                    text: item.text;
+                                    color: white;
+                                    font-family: "Consolas";
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            ta := TouchArea {
+                                clicked => {
+                                    root.archive_item_clicked(index);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (root.active_tab == 3) : VerticalLayout {
+                    padding: 10px;
+                    TextEdit {
+                        text <=> root.log_text;
+                        read-only: true;
+                        font-family: "Consolas";
+                        font-size: 13px;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 30px;
+            background: #1C1C1C;
+            border-color: #2C2C2C;
+            border-width: 1px;
+            border-radius: 4px;
+            Text { x: 10px; color: #4CAF50; text: root.status_msg; vertical-alignment: center; font-size: 13px; }
+        }
+    }
+}
