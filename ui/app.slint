@@ -1,4 +1,12 @@
-import { LineEdit, StandardListView, ListView, ComboBox, SpinBox, TextEdit, CheckBox } from "std-widgets.slint";
+import {
+    LineEdit,
+    StandardListView,
+    ListView,
+    ComboBox,
+    SpinBox,
+    TextEdit,
+    CheckBox,
+} from "std-widgets.slint";
 
 component ToolButton inherits Rectangle {
     in property <string> text;
@@ -87,38 +95,49 @@ export component AppWindow inherits Window {
                 font-weight: root.active_tab == 0 ? 800 : 500;
                 color: root.active_tab == 0 ? #FFFFFF : #6F6F6F;
                 vertical-alignment: center;
-                TouchArea { clicked => { root.active_tab = 0; } }
+                TouchArea {
+                    clicked => { root.active_tab = 0; }
+                }
             }
+
             Text {
                 text: "TEXTURES (DDS/NIF)";
                 font-size: 14px;
                 font-weight: root.active_tab == 1 ? 800 : 500;
                 color: root.active_tab == 1 ? #FFFFFF : #6F6F6F;
                 vertical-alignment: center;
-                TouchArea { clicked => { root.active_tab = 1; } }
+                TouchArea {
+                    clicked => { root.active_tab = 1; }
+                }
             }
+
             Text {
                 text: "XML & HASHES";
                 font-size: 14px;
                 font-weight: root.active_tab == 2 ? 800 : 500;
                 color: root.active_tab == 2 ? #FFFFFF : #6F6F6F;
                 vertical-alignment: center;
-                TouchArea { clicked => { root.active_tab = 2; } }
+                TouchArea {
+                    clicked => { root.active_tab = 2; }
+                }
             }
+
             Text {
                 text: "TERMINAL";
                 font-size: 14px;
                 font-weight: root.active_tab == 3 ? 800 : 500;
                 color: root.active_tab == 3 ? #FFFFFF : #6F6F6F;
                 vertical-alignment: center;
-                TouchArea { clicked => { root.active_tab = 3; } }
+                TouchArea {
+                    clicked => { root.active_tab = 3; }
+                }
             }
         }
 
         Text {
             text: root.active_tab == 0 ? "Divinity 2 DV2 Archive Tool" :
-                  (root.active_tab == 1 ? "Gamebryo DDS/NIF Converter" :
-                  (root.active_tab == 2 ? "Binary XML Tool & Hash Scanner" : "Progress Terminal"));
+                (root.active_tab == 1 ? "Gamebryo DDS/NIF Converter" :
+                (root.active_tab == 2 ? "Binary XML Tool & Hash Scanner" : "Progress Terminal"));
             font-size: 26px;
             font-weight: 800;
             color: #FFFFFF;
@@ -136,15 +155,22 @@ export component AppWindow inherits Window {
                 border-width: 1px;
                 border-radius: 8px;
 
-                if (root.active_tab == 0) : VerticalLayout {
+                if (root.active_tab == 0): VerticalLayout {
                     spacing: 12px;
                     padding: 18px;
 
-                    Text { text: "Unpack Archive"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "Unpack Archive";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: root.selected_dv2 == "" ? "Open .DV2 Archive" : "Selected: " + root.selected_dv2;
                         clicked => { root.selected_dv2 = root.browse_file("dv2"); }
                     }
+
                     ToolButton {
                         text: "Extract All";
                         enabled: root.selected_dv2 != "";
@@ -153,6 +179,7 @@ export component AppWindow inherits Window {
                             if (out_path != "") { root.unpack_dv2(root.selected_dv2, out_path); }
                         }
                     }
+
                     ToolButton {
                         text: "Batch Unpack All .DV2";
                         clicked => {
@@ -161,26 +188,49 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    Rectangle { height: 1px; background: #2C2C2C; }
+                    Rectangle {
+                        height: 1px;
+                        background: #2C2C2C;
+                    }
 
-                    Text { text: "Pack Archive"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "Pack Archive";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: root.selected_folder == "" ? "Select Folder to Pack" : "Selected Folder: " + root.selected_folder;
                         clicked => { root.selected_folder = root.browse_folder(); }
                     }
+
                     CheckBox {
                         text: "Use Zlib Compression";
                         checked <=> root.compress_archive;
                     }
+
                     HorizontalLayout {
                         spacing: 10px;
-                        Text { text: "Level:"; color: #AAAAAA; vertical-alignment: center; width: 65px; }
+                        Text {
+                            text: "Level:";
+                            color: #AAAAAA;
+                            vertical-alignment: center;
+                            width: 65px;
+                        }
+
                         ComboBox {
-                            model: ["Optimal (Zlib Level 6)", "Smallest Size (Zlib Level 9)", "Fastest (Zlib Level 1)", "No Compression (Zlib Level 0)"];
+                            model: [
+                                "Optimal (Zlib Level 6)",
+                                "Smallest Size (Zlib Level 9)",
+                                "Fastest (Zlib Level 1)",
+                                "No Compression (Zlib Level 0)"
+                            ];
                             current-value <=> root.compression_level;
                             enabled: root.compress_archive;
                         }
                     }
+
                     ToolButton {
                         text: "Pack to .DV2";
                         enabled: root.selected_folder != "";
@@ -189,18 +239,28 @@ export component AppWindow inherits Window {
                             if (target != "") { root.pack_dv2(root.selected_folder, target, root.compress_archive, root.compression_level); }
                         }
                     }
-                    Rectangle { vertical-stretch: 1; }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                    }
                 }
 
-                if (root.active_tab == 1) : VerticalLayout {
+                if (root.active_tab == 1): VerticalLayout {
                     spacing: 14px;
                     padding: 18px;
 
-                    Text { text: "DDS & NIF Conversions"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "DDS & NIF Conversions";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: root.selected_dds == "" ? "Select DDS File" : "Selected DDS: " + root.selected_dds;
                         clicked => { root.selected_dds = root.browse_file("dds"); }
                     }
+
                     ToolButton {
                         text: "Convert DDS to NIF";
                         enabled: root.selected_dds != "";
@@ -209,10 +269,12 @@ export component AppWindow inherits Window {
                             if (out_nif != "") { root.convert_dds_to_nif(root.selected_dds, out_nif); }
                         }
                     }
+
                     ToolButton {
                         text: root.selected_nif == "" ? "Select NIF File" : "Selected NIF: " + root.selected_nif;
                         clicked => { root.selected_nif = root.browse_file("nif"); }
                     }
+
                     ToolButton {
                         text: "Extract NIF to DDS";
                         enabled: root.selected_nif != "";
@@ -222,9 +284,18 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    Rectangle { height: 1px; background: #2C2C2C; }
+                    Rectangle {
+                        height: 1px;
+                        background: #2C2C2C;
+                    }
 
-                    Text { text: "Batch Utilities"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "Batch Utilities";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: "Batch Convert DDS -> NIF";
                         clicked => {
@@ -232,6 +303,7 @@ export component AppWindow inherits Window {
                             if (path != "") { root.batch_dds_to_nif(path); }
                         }
                     }
+
                     ToolButton {
                         text: "Batch Extract NIF -> DDS";
                         clicked => {
@@ -239,18 +311,28 @@ export component AppWindow inherits Window {
                             if (path != "") { root.batch_nif_to_dds(path); }
                         }
                     }
-                    Rectangle { vertical-stretch: 1; }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                    }
                 }
 
-                if (root.active_tab == 2) : VerticalLayout {
+                if (root.active_tab == 2): VerticalLayout {
                     spacing: 14px;
                     padding: 18px;
 
-                    Text { text: "Single XML Operations"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "Single XML Operations";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: root.selected_xml == "" ? "Select Binary XML (.xml)" : "Binary XML: " + root.selected_xml;
                         clicked => { root.selected_xml = root.browse_file("xml"); }
                     }
+
                     ToolButton {
                         text: "Extract Binary XML to Text XML";
                         enabled: root.selected_xml != "";
@@ -259,10 +341,12 @@ export component AppWindow inherits Window {
                             if (out_xml != "") { root.extract_binary_xml(root.selected_xml, out_xml); }
                         }
                     }
+
                     ToolButton {
                         text: root.selected_txt_xml == "" ? "Select Edited Text XML (.xml)" : "Text XML: " + root.selected_txt_xml;
                         clicked => { root.selected_txt_xml = root.browse_file("xml"); }
                     }
+
                     ToolButton {
                         text: "Repack Text XML to Binary XML";
                         enabled: root.selected_txt_xml != "" && root.selected_xml != "";
@@ -272,9 +356,18 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    Rectangle { height: 1px; background: #2C2C2C; }
+                    Rectangle {
+                        height: 1px;
+                        background: #2C2C2C;
+                    }
 
-                    Text { text: "Batch XML & Scanner"; font-size: 14px; font-weight: 700; color: #FFFFFF; }
+                    Text {
+                        text: "Batch XML & Scanner";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: #FFFFFF;
+                    }
+
                     ToolButton {
                         text: "Batch Extract Binary -> Text XML";
                         clicked => {
@@ -282,6 +375,7 @@ export component AppWindow inherits Window {
                             if (folder != "") { root.batch_extract_xml(folder); }
                         }
                     }
+
                     ToolButton {
                         text: "Batch Repack Text -> Binary XML";
                         clicked => {
@@ -289,6 +383,7 @@ export component AppWindow inherits Window {
                             if (folder != "") { root.batch_repack_xml(folder); }
                         }
                     }
+
                     ToolButton {
                         text: "Scan XMLs for Unknown Hashes";
                         clicked => {
@@ -298,7 +393,7 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                if (root.active_tab == 3) : VerticalLayout {
+                if (root.active_tab == 3): VerticalLayout {
                     alignment: center;
                     padding: 18px;
                     Text {
@@ -316,7 +411,7 @@ export component AppWindow inherits Window {
                 border-width: 1px;
                 border-radius: 8px;
 
-                if (root.active_tab == 0 || root.active_tab == 1 || root.active_tab == 2) : VerticalLayout {
+                if (root.active_tab == 0 || root.active_tab == 1 || root.active_tab == 2): VerticalLayout {
                     padding: 10px;
                     ListView {
                         for item[index] in root.archive_files: Rectangle {
@@ -332,6 +427,7 @@ export component AppWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                             }
+
                             ta := TouchArea {
                                 clicked => {
                                     root.archive_item_clicked(index);
@@ -341,7 +437,7 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                if (root.active_tab == 3) : VerticalLayout {
+                if (root.active_tab == 3): VerticalLayout {
                     padding: 10px;
                     TextEdit {
                         text <=> root.log_text;
@@ -359,7 +455,13 @@ export component AppWindow inherits Window {
             border-color: #2C2C2C;
             border-width: 1px;
             border-radius: 4px;
-            Text { x: 10px; color: #4CAF50; text: root.status_msg; vertical-alignment: center; font-size: 13px; }
+            Text {
+                x: 10px;
+                color: #4CAF50;
+                text: root.status_msg;
+                vertical-alignment: center;
+                font-size: 13px;
+            }
         }
     }
 }
