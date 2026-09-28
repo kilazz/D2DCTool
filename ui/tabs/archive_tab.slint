@@ -1,0 +1,300 @@
+import {
+    LineEdit,
+    ComboBox,
+    CheckBox,
+    ListView,
+    StandardListView,
+    Slider,
+} from "std-widgets.slint";
+import { CustomButton } from "../components/buttons.slint";
+import { FormRow, SplitterBar } from "../components/common.slint";
+
+export component ArchiveTab inherits HorizontalLayout {
+    in-out property <length> sidebar_width: 420px;
+    in-out property <string> selected_dv2: "";
+    in-out property <string> selected_folder: "";
+    in-out property <bool> compress_archive: true;
+    in-out property <string> compression_algo: "Zlib";
+    in-out property <int> compression_level: 6;
+    in-out property <[StandardListViewItem]> archive_files: [];
+
+    // Callbacks
+    callback browse_file(string) -> string;
+    callback browse_folder() -> string;
+    callback save_file(string) -> string;
+
+    callback unpack_dv2(string, string);
+    callback batch_unpack_dv2(string);
+
+    callback pack_dv2(string, string, bool, string, int);
+    callback batch_pack_dv2(string, bool, string, int);
+
+    callback load_dv2_tree(string);
+    callback archive_item_clicked(int);
+
+    spacing: 0px;
+
+    // LEFT CONFIGURATION SIDEBAR
+    Rectangle {
+        width: root.sidebar_width;
+        background: #2b2d31;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        VerticalLayout {
+            padding: 14px;
+            spacing: 12px;
+            alignment: start;
+
+            Text {
+                text: "ARCHIVE EXTRACTION";
+                font-size: 12px;
+                font-weight: 700;
+                color: #f0b132;
+            }
+
+            FormRow {
+                title: "DV2 Archive:";
+                HorizontalLayout {
+                    spacing: 4px;
+                    LineEdit {
+                        text <=> root.selected_dv2;
+                        placeholder-text: "Path to .dv2 archive...";
+                        font-family: "Consolas";
+                        font-size: 11px;
+                    }
+
+                    CustomButton {
+                        text: "...";
+                        width: 32px;
+                        clicked => {
+                            root.selected_dv2 = root.browse_file("dv2");
+                            if (root.selected_dv2 != "") {
+                                root.load_dv2_tree(root.selected_dv2);
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                CustomButton {
+                    text: "Extract All";
+                    enabled: root.selected_dv2 != "";
+                    primary-color: #3e6a90;
+                    horizontal-stretch: 1;
+                    clicked => {
+                        let out_dir = root.browse_folder();
+                        if (out_dir != "") { root.unpack_dv2(root.selected_dv2, out_dir); }
+                    }
+                }
+
+                CustomButton {
+                    text: "Inspect VFS";
+                    enabled: root.selected_dv2 != "";
+                    primary-color: #f0b132;
+                    width: 100px;
+                    clicked => {
+                        if (root.selected_dv2 != "") {
+                            root.load_dv2_tree(root.selected_dv2);
+                        }
+                    }
+                }
+            }
+
+            CustomButton {
+                text: "Batch Unpack All .DV2 in Folder...";
+                primary-color: #4e5058;
+                clicked => {
+                    let folder = root.browse_folder();
+                    if (folder != "") { root.batch_unpack_dv2(folder); }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: #353535;
+            }
+
+            Text {
+                text: "ARCHIVE PACKAGING";
+                font-size: 12px;
+                font-weight: 700;
+                color: #f0b132;
+            }
+
+            FormRow {
+                title: "Source Folder:";
+                HorizontalLayout {
+                    spacing: 4px;
+                    LineEdit {
+                        text <=> root.selected_folder;
+                        placeholder-text: "Directory to pack...";
+                        font-family: "Consolas";
+                        font-size: 11px;
+                    }
+
+                    CustomButton {
+                        text: "...";
+                        width: 32px;
+                        clicked => { root.selected_folder = root.browse_folder(); }
+                    }
+                }
+            }
+
+            CheckBox {
+                text: "Enable Compression & Deduplication";
+                checked <=> root.compress_archive;
+            }
+
+            FormRow {
+                title: "Algorithm:";
+                ComboBox {
+                    model: ["Zlib", "Zopfli (Ultra Squeeze)"];
+                    current-value <=> root.compression_algo;
+                    enabled: root.compress_archive;
+                    selected(val) => {
+                        if (val == "Zopfli (Ultra Squeeze)" && root.compression_level == 0) {
+                            root.compression_level = 6;
+                        }
+                    }
+                }
+            }
+
+            FormRow {
+                title: "Level:";
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    Slider {
+                        minimum: root.compression_algo == "Zlib" ? 0 : 1;
+                        maximum: 9;
+                        value: root.compression_level;
+                        enabled: root.compress_archive;
+                        changed(val) => {
+                            root.compression_level = Math.round(val);
+                        }
+                    }
+
+                    Text {
+                        text: root.compression_level == 0 ? "0 (Store)" :
+                            (root.compression_level == 1 ? "1 (Fast)" :
+                            (root.compression_level == 6 ? "6 (Default)" :
+                            (root.compression_level == 9 ? "9 (Max)" : root.compression_level)));
+                        font-family: "Consolas";
+                        font-size: 11px;
+                        color: #f0b132;
+                        vertical-alignment: center;
+                        width: 75px;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+
+                CustomButton {
+                    text: "Pack to .DV2";
+                    enabled: root.selected_folder != "";
+                    primary-color: #23a55a;
+                    horizontal-stretch: 1;
+                    clicked => {
+                        let target = root.save_file("dv2");
+                        if (target != "") {
+                            let algo = root.compression_algo == "Zlib" ? "zlib" : "zopfli";
+                            root.pack_dv2(root.selected_folder, target, root.compress_archive, algo, root.compression_level);
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Batch Pack...";
+                    primary-color: #4e5058;
+                    width: 100px;
+                    clicked => {
+                        let root_dir = root.browse_folder();
+                        if (root_dir != "") {
+                            let algo = root.compression_algo == "Zlib" ? "zlib" : "zopfli";
+                            root.batch_pack_dv2(root_dir, root.compress_archive, algo, root.compression_level);
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+            }
+        }
+    }
+
+    // DRAGGABLE SPLITTER
+    SplitterBar {
+        target-width <=> root.sidebar_width;
+    }
+
+    // RIGHT SCROLLABLE VFS TREE VIEW
+    Rectangle {
+        horizontal-stretch: 1;
+        background: #18191b;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        VerticalLayout {
+            padding: 10px;
+            spacing: 6px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                Text {
+                    text: "VFS Explorer";
+                    color: #949ba4;
+                    font-size: 11px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: root.archive_files.length + " items";
+                    font-family: "Consolas";
+                    font-size: 11px;
+                    color: #cfcfcf;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle {
+                background: #111214;
+                border-radius: 4px;
+                vertical-stretch: 1;
+                clip: true;
+
+                ListView {
+                    for item[index] in root.archive_files: Rectangle {
+                        height: 24px;
+                        background: ta.has-hover ? #2c3e50 : (Math.mod(index, 2) == 0 ? #18191b : #141517);
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            Text {
+                                text: item.text;
+                                color: #ffffff;
+                                font-family: "Consolas";
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.archive_item_clicked(index); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,20 @@
+import { TextEdit } from "std-widgets.slint";
+
+export component LogTab inherits Rectangle {
+    in-out property <string> log_text: "";
+
+    background: #2b2d31;
+    border-color: #1f2023;
+    border-width: 1px;
+    border-radius: 4px;
+
+    VerticalLayout {
+        padding: 10px;
+        TextEdit {
+            text <=> root.log_text;
+            read-only: true;
+            font-family: "Consolas";
+            font-size: 12px;
+        }
+    }
+}

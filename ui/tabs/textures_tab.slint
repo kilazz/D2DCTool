@@ -1,0 +1,239 @@
+import { LineEdit, ScrollView } from "std-widgets.slint";
+import { CustomButton } from "../components/buttons.slint";
+import { FormRow, SplitterBar } from "../components/common.slint";
+
+export component TexturesTab inherits HorizontalLayout {
+    in-out property <length> sidebar_width: 440px;
+
+    in-out property <string> selected_dds: "";
+    in-out property <string> selected_nif: "";
+    in-out property <image> preview_texture;
+    in-out property <string> preview_info: "Select a DDS to preview.";
+
+    callback browse_file(string) -> string;
+    callback browse_folder() -> string;
+    callback save_file(string) -> string;
+
+    // Core conversion callbacks
+    callback convert_dds_to_nif(string, string);
+    callback extract_nif_to_dds(string, string);
+    callback batch_dds_to_nif(string);
+    callback batch_nif_to_dds(string);
+
+    // Diagnostics & Preview
+    callback request_texture_preview(string);
+    callback repair_dds_file(string);
+    callback batch_repair_dds(string);
+
+    spacing: 0px;
+
+    // LEFT CONTROL SIDEBAR
+    Rectangle {
+        width: root.sidebar_width;
+        background: #2b2d31;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        ScrollView {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 12px;
+                alignment: start;
+
+                Text {
+                    text: "SINGLE TEXTURE CONVERSIONS";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #f0b132;
+                }
+
+                // DDS to NIF
+                FormRow {
+                    title: "DDS File:";
+                    HorizontalLayout {
+                        spacing: 4px;
+                        LineEdit {
+                            text <=> root.selected_dds;
+                            placeholder-text: "Choose .dds file...";
+                            font-family: "Consolas";
+                            font-size: 11px;
+                            edited => { root.request_texture_preview(root.selected_dds); }
+                        }
+
+                        CustomButton {
+                            text: "...";
+                            width: 32px;
+                            clicked => {
+                                root.selected_dds = root.browse_file("dds");
+                                if (root.selected_dds != "") {
+                                    root.request_texture_preview(root.selected_dds);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Convert DDS -> NIF (Gamebryo Texture)";
+                    enabled: root.selected_dds != "";
+                    primary-color: #23a55a;
+                    clicked => {
+                        let out_nif = root.save_file("nif");
+                        if (out_nif != "") { root.convert_dds_to_nif(root.selected_dds, out_nif); }
+                    }
+                }
+
+                // NIF to DDS
+                FormRow {
+                    title: "NIF File:";
+                    HorizontalLayout {
+                        spacing: 4px;
+                        LineEdit {
+                            text <=> root.selected_nif;
+                            placeholder-text: "Choose .nif texture file...";
+                            font-family: "Consolas";
+                            font-size: 11px;
+                        }
+
+                        CustomButton {
+                            text: "...";
+                            width: 32px;
+                            clicked => { root.selected_nif = root.browse_file("nif"); }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Extract NIF -> DDS";
+                    enabled: root.selected_nif != "";
+                    primary-color: #3e6a90;
+                    clicked => {
+                        let out_dds = root.save_file("dds");
+                        if (out_dds != "") { root.extract_nif_to_dds(root.selected_nif, out_dds); }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #353535;
+                }
+
+                Text {
+                    text: "BATCH TEXTURE UTILITIES";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #f0b132;
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    CustomButton {
+                        text: "Batch DDS -> NIF";
+                        primary-color: #3e6a90;
+                        clicked => {
+                            let f = root.browse_folder();
+                            if (f != "") { root.batch_dds_to_nif(f); }
+                        }
+                    }
+
+                    CustomButton {
+                        text: "Batch NIF -> DDS";
+                        primary-color: #3e6a90;
+                        clicked => {
+                            let f = root.browse_folder();
+                            if (f != "") { root.batch_nif_to_dds(f); }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #353535;
+                }
+
+                Text {
+                    text: "DIAGNOSTICS & HEADER REPAIR";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #e59535;
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    CustomButton {
+                        text: "Repair Selected DDS";
+                        enabled: root.selected_dds != "";
+                        primary-color: #4e5058;
+                        clicked => { root.repair_dds_file(root.selected_dds); }
+                    }
+
+                    CustomButton {
+                        text: "Batch Repair Folder...";
+                        primary-color: #4e5058;
+                        clicked => {
+                            let f = root.browse_folder();
+                            if (f != "") { root.batch_repair_dds(f); }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+            }
+        }
+    }
+
+    SplitterBar {
+        target-width <=> root.sidebar_width;
+    }
+
+    // RIGHT PREVIEW VIEWPORT
+    Rectangle {
+        horizontal-stretch: 1;
+        background: #141517;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            alignment: center;
+
+            Text {
+                text: "TEXTURE INSPECTOR & LIVE PREVIEW";
+                font-size: 11px;
+                font-weight: 700;
+                color: #949ba4;
+                horizontal-alignment: center;
+            }
+
+            Rectangle {
+                width: 280px;
+                height: 280px;
+                background: #111214;
+                border-color: #f0b132;
+                border-width: 1.5px;
+                border-radius: 6px;
+                clip: true;
+
+                Image {
+                    source: root.preview_texture;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: contain;
+                }
+            }
+
+            Text {
+                text: root.preview_info;
+                color: #cfcfcf;
+                font-family: "Consolas";
+                font-size: 12px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

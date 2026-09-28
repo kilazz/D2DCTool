@@ -1,0 +1,251 @@
+import { LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
+import { CustomButton } from "../components/buttons.slint";
+import { FormRow, SplitterBar } from "../components/common.slint";
+
+export component XmlTab inherits HorizontalLayout {
+    in-out property <length> sidebar_width: 440px;
+
+    in-out property <string> selected_binary_xml: "";
+    in-out property <string> selected_text_xml: "";
+    in-out property <string> xml_preview_content: "";
+
+    callback browse_folder() -> string;
+    callback browse_file(string) -> string;
+    callback save_file(string) -> string;
+
+    // Binary XML Core
+    callback extract_binary_xml(string, string);
+    callback repack_readable_xml(string, string, string);
+    callback batch_extract_xml(string);
+    callback batch_repack_xml(string);
+    callback scan_hashes(string);
+
+    // Diff & Patch Engine
+    callback create_diff_patch(string, string, string);
+    callback apply_diff_patch(string, string);
+
+    spacing: 0px;
+
+    // LEFT CONTROL SIDEBAR
+    Rectangle {
+        width: root.sidebar_width;
+        background: #2b2d31;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        ScrollView {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 12px;
+                alignment: start;
+
+                Text {
+                    text: "BINARY GAMEBRYO XML (.xml)";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #f0b132;
+                }
+
+                FormRow {
+                    title: "Binary XML:";
+                    HorizontalLayout {
+                        spacing: 4px;
+                        LineEdit {
+                            text <=> root.selected_binary_xml;
+                            placeholder-text: "Path to binary .xml...";
+                            font-family: "Consolas";
+                            font-size: 11px;
+                        }
+
+                        CustomButton {
+                            text: "...";
+                            width: 32px;
+                            clicked => { root.selected_binary_xml = root.browse_file("xml"); }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Extract Binary XML -> Readable XML";
+                    enabled: root.selected_binary_xml != "";
+                    primary-color: #3e6a90;
+                    clicked => {
+                        let out_xml = root.save_file("xml");
+                        if (out_xml != "") { root.extract_binary_xml(root.selected_binary_xml, out_xml); }
+                    }
+                }
+
+                FormRow {
+                    title: "Edited XML:";
+                    HorizontalLayout {
+                        spacing: 4px;
+                        LineEdit {
+                            text <=> root.selected_text_xml;
+                            placeholder-text: "Path to edited text .xml...";
+                            font-family: "Consolas";
+                            font-size: 11px;
+                        }
+
+                        CustomButton {
+                            text: "...";
+                            width: 32px;
+                            clicked => { root.selected_text_xml = root.browse_file("xml"); }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Repack Text XML -> Binary XML";
+                    enabled: root.selected_binary_xml != "" && root.selected_text_xml != "";
+                    primary-color: #23a55a;
+                    clicked => {
+                        let out_bin = root.save_file("xml");
+                        if (out_bin != "") {
+                            root.repack_readable_xml(root.selected_binary_xml, root.selected_text_xml, out_bin);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #353535;
+                }
+
+                Text {
+                    text: "BATCH COMPILER & HASH SCANNER";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #f0b132;
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+                    CustomButton {
+                        text: "Batch Extract Folder";
+                        primary-color: #3e6a90;
+                        clicked => {
+                            let f = root.browse_folder();
+                            if (f != "") { root.batch_extract_xml(f); }
+                        }
+                    }
+
+                    CustomButton {
+                        text: "Batch Repack Folder";
+                        primary-color: #3e6a90;
+                        clicked => {
+                            let f = root.browse_folder();
+                            if (f != "") { root.batch_repack_xml(f); }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Scan Folder for Unknown Hashes";
+                    primary-color: #e59535;
+                    clicked => {
+                        let f = root.browse_folder();
+                        if (f != "") { root.scan_hashes(f); }
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #353535;
+                }
+
+                Text {
+                    text: "DIFF & PATCH ENGINE (NON-DESTRUCTIVE)";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #23a55a;
+                }
+
+                CustomButton {
+                    text: "Generate Mod Diff Patch (Base vs Mod)...";
+                    primary-color: #4e5058;
+                    clicked => {
+                        let base_dir = root.browse_folder();
+                        if (base_dir != "") {
+                            let mod_dir = root.browse_folder();
+                            if (mod_dir != "") {
+                                let patch_out = root.save_file("json");
+                                if (patch_out != "") { root.create_diff_patch(base_dir, mod_dir, patch_out); }
+                            }
+                        }
+                    }
+                }
+
+                CustomButton {
+                    text: "Apply Mod Patch to Game Folder...";
+                    primary-color: #23a55a;
+                    clicked => {
+                        let patch_file = root.browse_file("json");
+                        if (patch_file != "") {
+                            let target_dir = root.browse_folder();
+                            if (target_dir != "") { root.apply_diff_patch(target_dir, patch_file); }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+            }
+        }
+    }
+
+    SplitterBar {
+        target-width <=> root.sidebar_width;
+    }
+
+    // RIGHT WORKSPACE: LIVE XML VIEWPORT / WORKSPACE
+    Rectangle {
+        horizontal-stretch: 1;
+        background: #18191b;
+        border-color: #1f2023;
+        border-width: 1px;
+        border-radius: 4px;
+
+        VerticalLayout {
+            padding: 10px;
+            spacing: 8px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                Text {
+                    text: "XML & PATCH WORKSPACE";
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #949ba4;
+                    vertical-alignment: center;
+                }
+
+                CustomButton {
+                    text: "Load XML to View";
+                    width: 130px;
+                    primary-color: #3e6a90;
+                    clicked => {
+                        let f = root.browse_file("xml");
+                        if (f != "") {
+                            root.selected_text_xml = f;
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                background: #111214;
+                border-radius: 4px;
+                vertical-stretch: 1;
+
+                TextEdit {
+                    text <=> root.xml_preview_content;
+                    font-family: "Consolas";
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
