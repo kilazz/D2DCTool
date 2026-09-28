@@ -93,7 +93,7 @@ pub fn read_entries(dv2_path: &Path) -> Result<Vec<Dv2Entry>, String> {
     Ok(entries)
 }
 
-/// Streams and unpacks all entries from a DV2 archive into the specified output directory.
+/// Streams and unpacks all entries from a single DV2 archive into the specified destination folder.
 pub fn unpack_dv2<F: Fn(&str)>(
     dv2_path: &Path,
     out_dir: &Path,
@@ -227,12 +227,19 @@ pub fn unpack_dv2<F: Fn(&str)>(
     Ok(())
 }
 
-/// Recursively searches for and unpacks all .dv2 archives in a directory tree.
-pub fn batch_unpack_dv2<F: Fn(&str)>(root_dir: &Path, on_progress: F) -> Result<usize, String> {
-    on_progress(&format!("[*] Scanning for DV2 archives in: {:?}", root_dir));
+/// Recursively searches for and unpacks all .dv2 archives, preserving the complete relative directory hierarchy.
+pub fn batch_unpack_dv2<F: Fn(&str)>(
+    source_root: &Path,
+    dest_root: &Path,
+    on_progress: F,
+) -> Result<usize, String> {
+    on_progress(&format!(
+        "[*] Scanning for DV2 archives in: {:?}",
+        source_root
+    ));
     let mut found = 0;
 
-    for entry in walkdir::WalkDir::new(root_dir)
+    for entry in walkdir::WalkDir::new(source_root)
         .into_iter()
         .filter_map(|e| e.ok())
     {
@@ -244,21 +251,26 @@ pub fn batch_unpack_dv2<F: Fn(&str)>(root_dir: &Path, on_progress: F) -> Result<
                 .map(|ext| ext.eq_ignore_ascii_case("dv2"))
                 .unwrap_or(false)
         {
-            let p = entry.path();
-            let file_stem = p.file_stem().unwrap_or_default().to_string_lossy();
-            let parent = p.parent().unwrap_or(root_dir);
-            let out_dir = parent.join(format!("{}_extracted", file_stem));
+            let dv2_path = entry.path();
+
+            // Compute relative path from the game archive root
+            let rel_path = dv2_path
+                .strip_prefix(source_root)
+                .map_err(|e| format!("Failed to compute relative path: {}", e))?;
+
+            let parent_rel = rel_path.parent().unwrap_or_else(|| Path::new(""));
+            let file_stem = dv2_path.file_stem().unwrap_or_default().to_string_lossy();
+            let folder_name = format!("{}_extracted", file_stem);
+            let target_out_dir = dest_root.join(parent_rel).join(folder_name);
 
             on_progress(&format!(
-                "Extracting: {:?}",
-                p.file_name().unwrap_or_default()
+                "Unpacking ({}) -> {:?}",
+                rel_path.display(),
+                target_out_dir.file_name().unwrap_or_default()
             ));
-            if let Err(e) = unpack_dv2(p, &out_dir, |_| {}) {
-                on_progress(&format!(
-                    "[!] Error unpacking {:?}: {}",
-                    p.file_name().unwrap_or_default(),
-                    e
-                ));
+
+            if let Err(e) = unpack_dv2(dv2_path, &target_out_dir, |_| {}) {
+                on_progress(&format!("[!] Error unpacking {:?}: {}", rel_path, e));
             } else {
                 found += 1;
             }
@@ -266,13 +278,13 @@ pub fn batch_unpack_dv2<F: Fn(&str)>(root_dir: &Path, on_progress: F) -> Result<
     }
 
     on_progress(&format!(
-        "[+] Batch unpack completed: successfully processed {} archives.",
+        "[+] Batch unpack completed: {} archives extracted with folder hierarchy preserved.",
         found
     ));
     Ok(found)
 }
 
-/// Packs a single directory into a DV2 archive supporting deduplication, Zlib and Zopfli.
+/// Packs a single directory into a DV2 archive supporting deduplication, Zlib and Zopfli algorithms.
 pub fn pack_dv2<F: Fn(&str)>(
     source_dir: &Path,
     out_dv2_path: &Path,
@@ -325,6 +337,7 @@ pub fn pack_dv2<F: Fn(&str)>(
     let total_header_area = header_size + names_ms.len() as u32 + 4 + dir_block_size;
     let data_start_offset = get_next_boundary(total_header_area as u64) as u32;
 
+    // Write Divinity 2 Version 5 Header
     out_file
         .write_u32::<LittleEndian>(5)
         .map_err(|e| e.to_string())?;
@@ -380,6 +393,7 @@ pub fn pack_dv2<F: Fn(&str)>(
         hasher.update(&file_bytes);
         let hash: [u8; 32] = hasher.finalize().into();
 
+        // Check for deduplication match
         if let Some(&(existing_off, comp_sz)) = seen_payloads.get(&(file_length, hash)) {
             dedup_count += 1;
             saved_bytes += file_length as u64;
@@ -476,49 +490,72 @@ pub fn pack_dv2<F: Fn(&str)>(
     Ok(())
 }
 
-/// Scans for all directories ending with `_extracted` in root_dir and packs each into a `.dv2` archive.
+/// Recursively searches for all directories ending with `_extracted` at any depth
+/// and compiles each back into a `.dv2` archive at the matching relative destination path.
 pub fn batch_pack_folders<F: Fn(&str)>(
-    root_dir: &Path,
+    source_extracted_root: &Path,
+    dest_packed_root: &Path,
     compress: bool,
     algo: &str,
     comp_level: u32,
     on_progress: F,
 ) -> Result<usize, String> {
     on_progress(&format!(
-        "[*] Scanning for extracted folders in: {:?}",
-        root_dir
+        "[*] Scanning for extracted folders at all depths in: {:?}",
+        source_extracted_root
     ));
     let mut compiled = 0;
 
-    let entries = fs::read_dir(root_dir).map_err(|e| e.to_string())?;
-    for entry in entries.filter_map(|e| e.ok()) {
+    let mut it = walkdir::WalkDir::new(source_extracted_root).into_iter();
+
+    loop {
+        let entry = match it.next() {
+            None => break,
+            Some(Err(_)) => continue,
+            Some(Ok(entry)) => entry,
+        };
+
         let path = entry.path();
-        if path.is_dir() {
-            let folder_name = path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
+        if path.is_dir() && path != source_extracted_root {
+            let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
 
-            if !folder_name.to_lowercase().ends_with("_extracted") {
-                continue;
-            }
+            if dir_name.to_lowercase().ends_with("_extracted") {
+                // Do not descend into the contents of this extracted directory
+                it.skip_current_dir();
 
-            let base_name = &folder_name[..folder_name.len().saturating_sub(10)];
-            let out_dv2 = root_dir.join(format!("{}.dv2", base_name));
+                let parent_dir = path.parent().unwrap_or(source_extracted_root);
+                let parent_rel = parent_dir
+                    .strip_prefix(source_extracted_root)
+                    .map_err(|e| e.to_string())?;
 
-            on_progress(&format!("Compiling folder: {:?}", folder_name));
-            if let Err(e) = pack_dv2(&path, &out_dv2, compress, algo, comp_level, |_| {}) {
-                on_progress(&format!("[!] Error packing {:?}: {}", folder_name, e));
-            } else {
-                compiled += 1;
+                let clean_stem = &dir_name[..dir_name.len().saturating_sub(10)]; // Remove "_extracted"
+                let target_dv2_path = dest_packed_root
+                    .join(parent_rel)
+                    .join(format!("{}.dv2", clean_stem));
+
+                if let Some(p) = target_dv2_path.parent() {
+                    let _ = fs::create_dir_all(p);
+                }
+
+                on_progress(&format!(
+                    "Compiling ({}) -> {:?}",
+                    dir_name,
+                    target_dv2_path.file_name().unwrap_or_default()
+                ));
+
+                if let Err(e) = pack_dv2(path, &target_dv2_path, compress, algo, comp_level, |_| {})
+                {
+                    on_progress(&format!("[!] Error packing {:?}: {}", path, e));
+                } else {
+                    compiled += 1;
+                }
             }
         }
     }
 
     on_progress(&format!(
-        "[+] Batch pack completed: successfully compiled {} archives.",
-        compiled
+        "[+] Batch pack completed: {} archives successfully compiled into {:?}",
+        compiled, dest_packed_root
     ));
     Ok(compiled)
 }

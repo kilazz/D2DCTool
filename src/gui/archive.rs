@@ -75,7 +75,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Single unpack
+    // Single unpack callback
     let log_unpack = logger.clone();
     ui.on_unpack_dv2(move |input, out| {
         let log = log_unpack.clone();
@@ -92,20 +92,27 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Batch unpack
+    // Batch unpack: Prompts user for destination folder to prevent polluting game installation
     let log_bunpack = logger.clone();
     ui.on_batch_unpack_dv2(move |root_folder| {
         let log = log_bunpack.clone();
-        let p = PathBuf::from(root_folder.as_str());
+        let src_p = PathBuf::from(root_folder.as_str());
 
         thread::spawn(move || {
-            if let Err(e) = dv2_archive::batch_unpack_dv2(&p, |msg| log.log(msg)) {
-                log.log(&format!("[!] Batch Unpack Error: {}", e));
+            if let Some(dest_p) = rfd::FileDialog::new()
+                .set_title("Select Destination Folder for Extracted Archives")
+                .pick_folder()
+            {
+                if let Err(e) = dv2_archive::batch_unpack_dv2(&src_p, &dest_p, |msg| log.log(msg)) {
+                    log.log(&format!("[!] Batch Unpack Error: {}", e));
+                }
+            } else {
+                log.log("[*] Batch unpack cancelled: no destination folder selected.");
             }
         });
     });
 
-    // Single pack
+    // Single pack callback (takes integer level directly: 0..=9)
     let log_pack = logger.clone();
     ui.on_pack_dv2(move |src, out, comp, algo, lvl| {
         let log = log_pack.clone();
@@ -129,19 +136,31 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Batch pack
+    // Batch pack callback: Recursively finds all `_extracted` folders and compiles each into `.dv2`
     let log_bpack = logger;
     ui.on_batch_pack_dv2(move |root_folder, comp, algo, lvl| {
         let log = log_bpack.clone();
-        let p = PathBuf::from(root_folder.as_str());
+        let src_p = PathBuf::from(root_folder.as_str());
         let algo_str = algo.to_string();
         let level = lvl.clamp(0, 9) as u32;
 
         thread::spawn(move || {
-            if let Err(e) =
-                dv2_archive::batch_pack_folders(&p, comp, &algo_str, level, |msg| log.log(msg))
+            if let Some(dest_p) = rfd::FileDialog::new()
+                .set_title("Select Destination Output Folder for Compiled .DV2 Archives")
+                .pick_folder()
             {
-                log.log(&format!("[!] Batch Pack Error: {}", e));
+                if let Err(e) = dv2_archive::batch_pack_folders(
+                    &src_p,
+                    &dest_p,
+                    comp,
+                    &algo_str,
+                    level,
+                    |msg| log.log(msg),
+                ) {
+                    log.log(&format!("[!] Batch Pack Error: {}", e));
+                }
+            } else {
+                log.log("[*] Batch pack cancelled: no output folder selected.");
             }
         });
     });
