@@ -1,18 +1,23 @@
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 #[derive(Clone)]
 pub struct UiLogger {
-    sender: mpsc::Sender<String>,
+    sender: Arc<Mutex<mpsc::Sender<String>>>,
 }
 
 impl UiLogger {
     pub fn new(sender: mpsc::Sender<String>) -> Self {
-        Self { sender }
+        Self {
+            sender: Arc::new(Mutex::new(sender)),
+        }
     }
 
     pub fn log(&self, msg: &str) {
-        let _ = self.sender.send(format!("{}\n", msg));
+        if let Ok(tx) = self.sender.lock() {
+            let _ = tx.send(format!("{}\n", msg));
+        }
     }
 }
 

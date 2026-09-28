@@ -2,10 +2,11 @@ use crate::AppWindow;
 use crate::dds;
 use crate::logger::UiLogger;
 use byteorder::{LittleEndian, ReadBytesExt};
+use rayon::prelude::*;
 use slint::{ComponentHandle, Image};
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread;
 
@@ -110,6 +111,7 @@ pub fn register_textures_callbacks(ui: &AppWindow, logger: UiLogger) {
         );
     });
 
+    // Parallel batch DDS -> NIF
     let log_bconv = logger.clone();
     ui.on_batch_dds_to_nif(move |folder| {
         let log = log_bconv.clone();
@@ -129,28 +131,29 @@ pub fn register_textures_callbacks(ui: &AppWindow, logger: UiLogger) {
                 })
                 .collect();
 
-            log.log(&format!("[*] Found {} DDS files to convert.", files.len()));
-            let mut success = 0;
-            for (i, entry) in files.iter().enumerate() {
+            let total = files.len();
+            log.log(&format!(
+                "[*] Converting {} DDS files in parallel on all CPU cores...",
+                total
+            ));
+            let success_count = AtomicUsize::new(0);
+
+            files.par_iter().for_each(|entry| {
                 let out_nif = entry.path().with_extension("nif");
-                log.log(&format!(
-                    "[{}/{}] Converting: {:?}",
-                    i + 1,
-                    files.len(),
-                    entry.path().file_name().unwrap_or_default()
-                ));
                 if dds::convert_dds_to_nif(entry.path(), &out_nif, |_| {}).is_ok() {
-                    success += 1;
+                    success_count.fetch_add(1, Ordering::Relaxed);
                 }
-            }
+            });
+
             log.log(&format!(
                 "[+] Batch conversion finished: {}/{} converted.",
-                success,
-                files.len()
+                success_count.load(Ordering::Relaxed),
+                total
             ));
         });
     });
 
+    // Parallel batch NIF -> DDS
     let log_bext = logger;
     ui.on_batch_nif_to_dds(move |folder| {
         let log = log_bext.clone();
@@ -170,17 +173,23 @@ pub fn register_textures_callbacks(ui: &AppWindow, logger: UiLogger) {
                 })
                 .collect();
 
-            log.log(&format!("[*] Found {} NIF files to extract.", files.len()));
-            let mut success = 0;
-            for entry in &files {
+            let total = files.len();
+            log.log(&format!(
+                "[*] Extracting {} NIF files in parallel on all CPU cores...",
+                total
+            ));
+            let success_count = AtomicUsize::new(0);
+
+            files.par_iter().for_each(|entry| {
                 let out_dds = entry.path().with_extension("dds");
                 if let Ok(true) = dds::extract_nif_to_dds(entry.path(), &out_dds, |_| {}) {
-                    success += 1;
+                    success_count.fetch_add(1, Ordering::Relaxed);
                 }
-            }
+            });
+
             log.log(&format!(
                 "[+] Batch extraction finished: {} textures extracted.",
-                success
+                success_count.load(Ordering::Relaxed)
             ));
         });
     });

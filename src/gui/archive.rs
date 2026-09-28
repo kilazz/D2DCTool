@@ -11,7 +11,7 @@ use std::thread;
 pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
     let tree_items_state = Arc::new(Mutex::new(Vec::<TreeItem>::new()));
 
-    // Handle node expand/collapse click in the virtualized VFS tree
+    // Virtualized tree expand/collapse click
     let tree_items_click = tree_items_state.clone();
     let ui_weak_click = ui.as_weak();
 
@@ -32,7 +32,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         }
     });
 
-    // Inspect and load the archive file structure into the VFS tree
+    // Inspect single DV2 archive
     let tree_items_browse = tree_items_state;
     let ui_weak_browse = ui.as_weak();
     let log_inspect = logger.clone();
@@ -58,10 +58,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
                         .map(|s| StandardListViewItem::from(SharedString::from(s)))
                         .collect();
 
-                    log.log(&format!(
-                        "[+] Successfully loaded {} files into VFS tree.",
-                        total
-                    ));
+                    log.log(&format!("[+] Loaded {} files into VFS tree.", total));
 
                     let _ = ui_weak.upgrade_in_event_loop(move |ui| {
                         ui.set_archive_files(ModelRc::from(Rc::new(VecModel::from(list_items))));
@@ -75,7 +72,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Single unpack callback
+    // Single unpack
     let log_unpack = logger.clone();
     ui.on_unpack_dv2(move |input, out| {
         let log = log_unpack.clone();
@@ -92,7 +89,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Batch unpack: Prompts user for destination folder to prevent polluting game installation
+    // Parallel batch unpack across all CPU cores
     let log_bunpack = logger.clone();
     ui.on_batch_unpack_dv2(move |root_folder| {
         let log = log_bunpack.clone();
@@ -112,7 +109,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Single pack callback (takes integer level directly: 0..=9)
+    // Single pack with chunked parallel compression
     let log_pack = logger.clone();
     ui.on_pack_dv2(move |src, out, comp, algo, lvl| {
         let log = log_pack.clone();
@@ -123,7 +120,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
 
         thread::spawn(move || {
             log.log(&format!(
-                "[*] Packing DV2 archive (Algorithm: {}, Level: {}, Dedup: enabled): {:?}",
+                "[*] Packing DV2 archive (Algorithm: {}, Level: {}, Dedup: XXH3): {:?}",
                 algo_str, level, s_path
             ));
             if let Err(e) =
@@ -136,7 +133,7 @@ pub fn register_archive_callbacks(ui: &AppWindow, logger: UiLogger) {
         });
     });
 
-    // Batch pack callback: Recursively finds all `_extracted` folders and compiles each into `.dv2`
+    // Parallel batch pack across all CPU cores
     let log_bpack = logger;
     ui.on_batch_pack_dv2(move |root_folder, comp, algo, lvl| {
         let log = log_bpack.clone();

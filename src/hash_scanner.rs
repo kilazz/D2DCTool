@@ -1,18 +1,29 @@
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-pub fn scan_and_verify<F: Fn(&str)>(xml_dir: &Path, log: F) -> Result<(), String> {
-    let dict_file = "hash_dictionary.txt";
-    let out_file = "unknown_hashes.txt";
+pub fn scan_and_verify<F: Fn(&str) + Sync + Send>(xml_dir: &Path, log: F) -> Result<(), String> {
+    let dict_file = "xml_hashes/hash_dictionary.txt";
+    let fallback_dict = "hash_dictionary.txt";
+    let out_file = "xml_hashes/unknown_hashes.txt";
 
     let mut known_strings = HashSet::new();
-    if Path::new(dict_file).exists() {
-        let f = File::open(dict_file).map_err(|e| e.to_string())?;
+    let dict_path = if Path::new(dict_file).exists() {
+        Some(Path::new(dict_file))
+    } else if Path::new(fallback_dict).exists() {
+        Some(Path::new(fallback_dict))
+    } else {
+        None
+    };
+
+    if let Some(p) = dict_path
+        && let Ok(f) = File::open(p)
+    {
         let r = BufReader::new(f);
         for line in r.lines().map_while(Result::ok) {
             let trimmed = line.trim().to_string();
@@ -32,10 +43,6 @@ pub fn scan_and_verify<F: Fn(&str)>(xml_dir: &Path, log: F) -> Result<(), String
         known_hashes.insert(super::xml_converter::get_hash_value(s));
     }
 
-    let mut all_found_hashes = HashSet::new();
-    let mut binary_count = 0;
-    let mut text_count = 0;
-
     let mut files = Vec::new();
     for entry in WalkDir::new(xml_dir).into_iter().filter_map(|e| e.ok()) {
         if entry.path().is_file()
@@ -45,33 +52,28 @@ pub fn scan_and_verify<F: Fn(&str)>(xml_dir: &Path, log: F) -> Result<(), String
         }
     }
 
-    log(&format!("Scanning {} XML files...", files.len()));
+    log(&format!(
+        "Scanning {} XML files in parallel on all CPU cores...",
+        files.len()
+    ));
 
     let text_regex = Regex::new(r#"\b(?:Name|Data)="([0-9A-Fa-f]{8})""#).unwrap();
 
-    for (i, file) in files.iter().enumerate() {
-        if i > 0 && i % 500 == 0 {
-            log(&format!("Scanning... {}/{}", i, files.len()));
-        }
-
-        if let Some(hashes) = parse_binary_xml(file) {
-            for h in hashes {
-                all_found_hashes.insert(h);
+    // Parallel map-reduce over all XML files using Rayon
+    let all_found_hashes: HashSet<u32> = files
+        .par_iter()
+        .map(|file| {
+            if let Some(hashes) = parse_binary_xml(file) {
+                hashes
+            } else {
+                parse_text_xml(file, &text_regex)
             }
-            binary_count += 1;
-        } else {
-            let hashes = parse_text_xml(file, &text_regex);
-            for h in hashes {
-                all_found_hashes.insert(h);
-            }
-            text_count += 1;
-        }
-    }
+        })
+        .reduce(HashSet::new, |mut acc, h| {
+            acc.extend(h);
+            acc
+        });
 
-    log(&format!(
-        "Processed binary XMLs: {}, text XMLs: {}",
-        binary_count, text_count
-    ));
     log(&format!(
         "Total unique hashes found: {}",
         all_found_hashes.len()
@@ -86,25 +88,23 @@ pub fn scan_and_verify<F: Fn(&str)>(xml_dir: &Path, log: F) -> Result<(), String
     log(&format!("Already KNOWN (in dictionary): {}", known_found));
     log(&format!("Remaining UNKNOWN: {}", unknown_hashes.len()));
 
-    let mut sorted_strings: Vec<String> = known_strings.into_iter().collect();
-    sorted_strings.sort_by_key(|a| a.to_lowercase());
-    let mut dict_out = File::create(dict_file).map_err(|e| e.to_string())?;
-    for s in &sorted_strings {
-        writeln!(dict_out, "{}", s).map_err(|e| e.to_string())?;
-    }
-
     let mut sorted_unknowns: Vec<u32> = unknown_hashes.into_iter().collect();
     sorted_unknowns.sort();
+
+    if let Some(parent) = Path::new(out_file).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
     let mut sw = File::create(out_file).map_err(|e| e.to_string())?;
     for h in sorted_unknowns {
         writeln!(sw, "{:08X}", h).map_err(|e| e.to_string())?;
     }
 
-    log("[OK] Cleaned dictionary and unknown hashes saved.");
+    log("[OK] Unknown hashes saved to xml_hashes/unknown_hashes.txt.");
     Ok(())
 }
 
-fn parse_binary_xml(filepath: &Path) -> Option<HashSet<u32>> {
+fn parse_binary_xml(filepath: &PathBuf) -> Option<HashSet<u32>> {
     let mut f = File::open(filepath).ok()?;
     let mut data = Vec::new();
     f.read_to_end(&mut data).ok()?;
@@ -229,7 +229,7 @@ fn parse_binary_xml(filepath: &Path) -> Option<HashSet<u32>> {
     Some(hashes)
 }
 
-fn parse_text_xml(filepath: &Path, regex: &Regex) -> HashSet<u32> {
+fn parse_text_xml(filepath: &PathBuf, regex: &Regex) -> HashSet<u32> {
     let mut hashes = HashSet::new();
     if let Ok(content) = std::fs::read_to_string(filepath) {
         for cap in regex.captures_iter(&content) {

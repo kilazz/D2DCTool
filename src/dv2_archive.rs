@@ -2,14 +2,18 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use sha2::{Digest, Sha256};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use xxhash_rust::xxh3::xxh3_128;
 use zopfli::{Format, Options};
 
 const BOUNDARY_SIZE: u64 = 32768; // 32 KB alignment boundary
+const READ_BUF_CAPACITY: usize = 128 * 1024; // 128 KB read buffer
+const WRITE_BUF_CAPACITY: usize = 256 * 1024; // 256 KB write buffer
 
 pub struct Dv2Entry {
     pub name: String,
@@ -21,7 +25,7 @@ pub struct Dv2Entry {
 /// Reads the directory index and filename table from a DV2 archive without loading payloads into RAM.
 pub fn read_entries(dv2_path: &Path) -> Result<Vec<Dv2Entry>, String> {
     let f = File::open(dv2_path).map_err(|e| format!("Failed to open DV2 archive: {}", e))?;
-    let mut reader = BufReader::new(f);
+    let mut reader = BufReader::with_capacity(READ_BUF_CAPACITY, f);
 
     let version = reader
         .read_u32::<LittleEndian>()
@@ -100,7 +104,7 @@ pub fn unpack_dv2<F: Fn(&str)>(
     on_progress: F,
 ) -> Result<(), String> {
     let f = File::open(dv2_path).map_err(|e| format!("Failed to open DV2 archive: {}", e))?;
-    let mut reader = BufReader::new(f);
+    let mut reader = BufReader::with_capacity(READ_BUF_CAPACITY, f);
 
     let version = reader
         .read_u32::<LittleEndian>()
@@ -205,7 +209,7 @@ pub fn unpack_dv2<F: Fn(&str)>(
                 e
             )
         })?;
-        let mut out_writer = BufWriter::new(out_file);
+        let mut out_writer = BufWriter::with_capacity(WRITE_BUF_CAPACITY, out_file);
 
         let take_reader = (&mut reader).take(entry.compressed_size as u64);
 
@@ -227,8 +231,8 @@ pub fn unpack_dv2<F: Fn(&str)>(
     Ok(())
 }
 
-/// Recursively searches for and unpacks all .dv2 archives, preserving the complete relative directory hierarchy.
-pub fn batch_unpack_dv2<F: Fn(&str)>(
+/// Fully parallelized batch unpacker across all CPU cores preserving directory hierarchy.
+pub fn batch_unpack_dv2<F: Fn(&str) + Sync + Send>(
     source_root: &Path,
     dest_root: &Path,
     on_progress: F,
@@ -237,8 +241,8 @@ pub fn batch_unpack_dv2<F: Fn(&str)>(
         "[*] Scanning for DV2 archives in: {:?}",
         source_root
     ));
-    let mut found = 0;
 
+    let mut dv2_files = Vec::new();
     for entry in walkdir::WalkDir::new(source_root)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -251,40 +255,61 @@ pub fn batch_unpack_dv2<F: Fn(&str)>(
                 .map(|ext| ext.eq_ignore_ascii_case("dv2"))
                 .unwrap_or(false)
         {
-            let dv2_path = entry.path();
-
-            // Compute relative path from the game archive root
-            let rel_path = dv2_path
-                .strip_prefix(source_root)
-                .map_err(|e| format!("Failed to compute relative path: {}", e))?;
-
-            let parent_rel = rel_path.parent().unwrap_or_else(|| Path::new(""));
-            let file_stem = dv2_path.file_stem().unwrap_or_default().to_string_lossy();
-            let folder_name = format!("{}_extracted", file_stem);
-            let target_out_dir = dest_root.join(parent_rel).join(folder_name);
-
-            on_progress(&format!(
-                "Unpacking ({}) -> {:?}",
-                rel_path.display(),
-                target_out_dir.file_name().unwrap_or_default()
-            ));
-
-            if let Err(e) = unpack_dv2(dv2_path, &target_out_dir, |_| {}) {
-                on_progress(&format!("[!] Error unpacking {:?}: {}", rel_path, e));
-            } else {
-                found += 1;
-            }
+            dv2_files.push(entry.path().to_path_buf());
         }
     }
 
+    let total = dv2_files.len();
     on_progress(&format!(
-        "[+] Batch unpack completed: {} archives extracted with folder hierarchy preserved.",
-        found
+        "[*] Found {} archives. Extracting in parallel on all CPU cores...",
+        total
     ));
-    Ok(found)
+
+    let success_count = AtomicUsize::new(0);
+    let processed_count = AtomicUsize::new(0);
+
+    dv2_files.par_iter().for_each(|dv2_path| {
+        let rel_path = match dv2_path.strip_prefix(source_root) {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+
+        let parent_rel = rel_path.parent().unwrap_or_else(|| Path::new(""));
+        let file_stem = dv2_path.file_stem().unwrap_or_default().to_string_lossy();
+        let folder_name = format!("{}_extracted", file_stem);
+        let target_out_dir = dest_root.join(parent_rel).join(folder_name);
+
+        let is_ok = unpack_dv2(dv2_path, &target_out_dir, |_| {}).is_ok();
+        let done = processed_count.fetch_add(1, Ordering::Relaxed) + 1;
+
+        if is_ok {
+            success_count.fetch_add(1, Ordering::Relaxed);
+        }
+
+        if done.is_multiple_of(5) || done == total {
+            on_progress(&format!(
+                "Progress: {}/{} archives processed...",
+                done, total
+            ));
+        }
+    });
+
+    let final_success = success_count.load(Ordering::Relaxed);
+    on_progress(&format!(
+        "[+] Batch unpack completed: {}/{} archives successfully extracted.",
+        final_success, total
+    ));
+    Ok(final_success)
 }
 
-/// Packs a single directory into a DV2 archive supporting deduplication, Zlib and Zopfli algorithms.
+struct PreparedChunkItem {
+    index: usize,
+    uncompressed_size: u32,
+    compressed_bytes: Vec<u8>,
+    hash: u128,
+}
+
+/// Packs a directory into a DV2 archive using parallel chunked compression and instant XXH3 deduplication.
 pub fn pack_dv2<F: Fn(&str)>(
     source_dir: &Path,
     out_dv2_path: &Path,
@@ -327,8 +352,9 @@ pub fn pack_dv2<F: Fn(&str)>(
         });
     }
 
-    let mut out_file = File::create(out_dv2_path)
+    let file_out = File::create(out_dv2_path)
         .map_err(|e| format!("Failed to create destination DV2 archive: {}", e))?;
+    let mut out_file = BufWriter::with_capacity(WRITE_BUF_CAPACITY, file_out);
 
     let header_size = 22u32;
     let file_count = entries.len() as u32;
@@ -337,7 +363,6 @@ pub fn pack_dv2<F: Fn(&str)>(
     let total_header_area = header_size + names_ms.len() as u32 + 4 + dir_block_size;
     let data_start_offset = get_next_boundary(total_header_area as u64) as u32;
 
-    // Write Divinity 2 Version 5 Header
     out_file
         .write_u32::<LittleEndian>(5)
         .map_err(|e| e.to_string())?;
@@ -367,98 +392,104 @@ pub fn pack_dv2<F: Fn(&str)>(
         .write_all(&placeholder)
         .map_err(|e| e.to_string())?;
 
-    pad_to(&mut out_file, data_start_offset as u64)?;
+    pad_to_writer(&mut out_file, data_start_offset as u64)?;
 
     let mut current_offset = 0u32;
-    let mut seen_payloads: HashMap<(u32, [u8; 32]), (u32, u32)> = HashMap::new();
+    let mut seen_payloads: HashMap<(u32, u128), (u32, u32)> = HashMap::new();
     let mut dedup_count = 0usize;
     let mut saved_bytes = 0u64;
 
     let use_zopfli = compress && algo.eq_ignore_ascii_case("zopfli");
 
-    for i in 0..files.len() {
-        on_progress(&format!(
-            "Packing ({}/{}): {}{}",
-            i + 1,
-            files.len(),
-            entries[i].name,
-            if use_zopfli { " [Zopfli]" } else { "" }
-        ));
+    on_progress(&format!(
+        "Packing {} files (Algorithm: {}, Level: {}, Dedup: XXH3)...",
+        files.len(),
+        if use_zopfli { "Zopfli" } else { "Zlib" },
+        comp_level
+    ));
 
-        let file_bytes = fs::read(&files[i])
-            .map_err(|e| format!("Failed to read file {:?}: {}", files[i], e))?;
-        let file_length = file_bytes.len() as u32;
+    // Process files in parallel batches of 64 to keep memory strictly bounded while utilizing all cores
+    const BATCH_SIZE: usize = 64;
+    for (chunk_idx, file_chunk) in files.chunks(BATCH_SIZE).enumerate() {
+        let base_idx = chunk_idx * BATCH_SIZE;
 
-        let mut hasher = Sha256::new();
-        hasher.update(&file_bytes);
-        let hash: [u8; 32] = hasher.finalize().into();
+        // Step 1: Read, compute XXH3-128 and compress files in parallel across all CPU cores
+        let processed: Vec<PreparedChunkItem> = file_chunk
+            .par_iter()
+            .enumerate()
+            .filter_map(|(sub_idx, path)| {
+                let file_bytes = fs::read(path).ok()?;
+                let uncompressed_size = file_bytes.len() as u32;
+                let hash = xxh3_128(&file_bytes);
 
-        // Check for deduplication match
-        if let Some(&(existing_off, comp_sz)) = seen_payloads.get(&(file_length, hash)) {
-            dedup_count += 1;
-            saved_bytes += file_length as u64;
-            entries[i].start_offset = existing_off;
-            entries[i].compressed_size = comp_sz;
-            entries[i].uncompressed_size = if compress { file_length } else { 0 };
-            continue;
-        }
-
-        entries[i].start_offset = current_offset;
-
-        if compress {
-            entries[i].uncompressed_size = file_length;
-
-            if use_zopfli {
-                let iters = match comp_level {
-                    0..=2 => 2,
-                    3..=5 => 5,
-                    6..=8 => 15,
-                    _ => 40,
+                let compressed_bytes = if compress {
+                    if use_zopfli {
+                        let iters = match comp_level {
+                            0..=2 => 2,
+                            3..=5 => 5,
+                            6..=8 => 15,
+                            _ => 40,
+                        };
+                        let options = Options {
+                            iteration_count: std::num::NonZeroU64::new(iters as u64).unwrap(),
+                            ..Default::default()
+                        };
+                        let mut out = Vec::new();
+                        zopfli::compress(options, Format::Zlib, &file_bytes[..], &mut out).ok()?;
+                        out
+                    } else {
+                        let mut encoder =
+                            ZlibEncoder::new(Vec::new(), Compression::new(comp_level));
+                        encoder.write_all(&file_bytes).ok()?;
+                        encoder.finish().ok()?
+                    }
+                } else {
+                    file_bytes
                 };
 
-                let options = Options {
-                    iteration_count: std::num::NonZeroU64::new(iters as u64).unwrap(),
-                    ..Default::default()
-                };
+                Some(PreparedChunkItem {
+                    index: base_idx + sub_idx,
+                    uncompressed_size,
+                    compressed_bytes,
+                    hash,
+                })
+            })
+            .collect();
 
-                let mut comp_data = Vec::new();
-                zopfli::compress(options, Format::Zlib, &file_bytes[..], &mut comp_data).map_err(
-                    |e| format!("Zopfli compression error on {}: {}", entries[i].name, e),
-                )?;
+        // Step 2: Sequentially write compressed blocks and apply deduplication
+        for item in processed {
+            let i = item.index;
+            let file_length = item.uncompressed_size;
 
-                out_file.write_all(&comp_data).map_err(|e| e.to_string())?;
-                entries[i].compressed_size = comp_data.len() as u32;
-            } else {
-                let start_pos = out_file.stream_position().map_err(|e| e.to_string())?;
-                {
-                    let mut encoder = ZlibEncoder::new(&mut out_file, Compression::new(comp_level));
-                    encoder
-                        .write_all(&file_bytes)
-                        .map_err(|e| format!("Zlib write error: {}", e))?;
-                    encoder
-                        .finish()
-                        .map_err(|e| format!("Zlib finalization error: {}", e))?;
-                }
-                let end_pos = out_file.stream_position().map_err(|e| e.to_string())?;
-                entries[i].compressed_size = (end_pos - start_pos) as u32;
+            if let Some(&(existing_off, comp_sz)) = seen_payloads.get(&(file_length, item.hash)) {
+                dedup_count += 1;
+                saved_bytes += file_length as u64;
+                entries[i].start_offset = existing_off;
+                entries[i].compressed_size = comp_sz;
+                entries[i].uncompressed_size = if compress { file_length } else { 0 };
+                continue;
             }
-        } else {
-            entries[i].uncompressed_size = 0;
-            entries[i].compressed_size = file_length;
-            out_file.write_all(&file_bytes).map_err(|e| e.to_string())?;
-        }
 
-        seen_payloads.insert(
-            (file_length, hash),
-            (entries[i].start_offset, entries[i].compressed_size),
-        );
-        current_offset += entries[i].compressed_size;
+            entries[i].start_offset = current_offset;
+            entries[i].uncompressed_size = if compress { file_length } else { 0 };
+            entries[i].compressed_size = item.compressed_bytes.len() as u32;
 
-        if !compress {
-            let cur_pos = out_file.stream_position().map_err(|e| e.to_string())?;
-            let padded_pos = get_next_boundary(cur_pos);
-            current_offset += (padded_pos - cur_pos) as u32;
-            pad_to(&mut out_file, padded_pos)?;
+            out_file
+                .write_all(&item.compressed_bytes)
+                .map_err(|e| e.to_string())?;
+
+            seen_payloads.insert(
+                (file_length, item.hash),
+                (entries[i].start_offset, entries[i].compressed_size),
+            );
+            current_offset += entries[i].compressed_size;
+
+            if !compress {
+                let cur_pos = out_file.stream_position().map_err(|e| e.to_string())?;
+                let padded_pos = get_next_boundary(cur_pos);
+                current_offset += (padded_pos - cur_pos) as u32;
+                pad_to_writer(&mut out_file, padded_pos)?;
+            }
         }
     }
 
@@ -478,6 +509,10 @@ pub fn pack_dv2<F: Fn(&str)>(
             .map_err(|e| e.to_string())?;
     }
 
+    out_file
+        .flush()
+        .map_err(|e| format!("Failed to flush archive: {}", e))?;
+
     if dedup_count > 0 {
         on_progress(&format!(
             "Deduplication saved: {} redundant files merged ({:.2} MB saved).",
@@ -490,9 +525,8 @@ pub fn pack_dv2<F: Fn(&str)>(
     Ok(())
 }
 
-/// Recursively searches for all directories ending with `_extracted` at any depth
-/// and compiles each back into a `.dv2` archive at the matching relative destination path.
-pub fn batch_pack_folders<F: Fn(&str)>(
+/// Parallelized batch packing: compiles extracted directories in parallel.
+pub fn batch_pack_folders<F: Fn(&str) + Sync + Send>(
     source_extracted_root: &Path,
     dest_packed_root: &Path,
     compress: bool,
@@ -504,8 +538,8 @@ pub fn batch_pack_folders<F: Fn(&str)>(
         "[*] Scanning for extracted folders at all depths in: {:?}",
         source_extracted_root
     ));
-    let mut compiled = 0;
 
+    let mut extracted_dirs = Vec::new();
     let mut it = walkdir::WalkDir::new(source_extracted_root).into_iter();
 
     loop {
@@ -518,53 +552,75 @@ pub fn batch_pack_folders<F: Fn(&str)>(
         let path = entry.path();
         if path.is_dir() && path != source_extracted_root {
             let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
-
             if dir_name.to_lowercase().ends_with("_extracted") {
-                // Do not descend into the contents of this extracted directory
                 it.skip_current_dir();
-
-                let parent_dir = path.parent().unwrap_or(source_extracted_root);
-                let parent_rel = parent_dir
-                    .strip_prefix(source_extracted_root)
-                    .map_err(|e| e.to_string())?;
-
-                let clean_stem = &dir_name[..dir_name.len().saturating_sub(10)]; // Remove "_extracted"
-                let target_dv2_path = dest_packed_root
-                    .join(parent_rel)
-                    .join(format!("{}.dv2", clean_stem));
-
-                if let Some(p) = target_dv2_path.parent() {
-                    let _ = fs::create_dir_all(p);
-                }
-
-                on_progress(&format!(
-                    "Compiling ({}) -> {:?}",
-                    dir_name,
-                    target_dv2_path.file_name().unwrap_or_default()
-                ));
-
-                if let Err(e) = pack_dv2(path, &target_dv2_path, compress, algo, comp_level, |_| {})
-                {
-                    on_progress(&format!("[!] Error packing {:?}: {}", path, e));
-                } else {
-                    compiled += 1;
-                }
+                extracted_dirs.push(path.to_path_buf());
             }
         }
     }
 
+    let total = extracted_dirs.len();
     on_progress(&format!(
-        "[+] Batch pack completed: {} archives successfully compiled into {:?}",
-        compiled, dest_packed_root
+        "[*] Found {} folders. Compiling archives in parallel across all CPU cores...",
+        total
     ));
-    Ok(compiled)
+
+    let compiled_count = AtomicUsize::new(0);
+    let processed_count = AtomicUsize::new(0);
+
+    extracted_dirs.par_iter().for_each(|dir_path| {
+        let dir_name = dir_path.file_name().unwrap_or_default().to_string_lossy();
+        let parent_dir = dir_path.parent().unwrap_or(source_extracted_root);
+        let parent_rel = match parent_dir.strip_prefix(source_extracted_root) {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+
+        let clean_stem = &dir_name[..dir_name.len().saturating_sub(10)];
+        let target_dv2_path = dest_packed_root
+            .join(parent_rel)
+            .join(format!("{}.dv2", clean_stem));
+
+        if let Some(p) = target_dv2_path.parent() {
+            let _ = fs::create_dir_all(p);
+        }
+
+        let is_ok = pack_dv2(
+            dir_path,
+            &target_dv2_path,
+            compress,
+            algo,
+            comp_level,
+            |_| {},
+        )
+        .is_ok();
+        let done = processed_count.fetch_add(1, Ordering::Relaxed) + 1;
+
+        if is_ok {
+            compiled_count.fetch_add(1, Ordering::Relaxed);
+        }
+
+        if done.is_multiple_of(5) || done == total {
+            on_progress(&format!(
+                "Progress: {}/{} archives compiled...",
+                done, total
+            ));
+        }
+    });
+
+    let final_compiled = compiled_count.load(Ordering::Relaxed);
+    on_progress(&format!(
+        "[+] Batch pack completed: {}/{} archives successfully compiled.",
+        final_compiled, total
+    ));
+    Ok(final_compiled)
 }
 
 fn get_next_boundary(pos: u64) -> u64 {
     pos.div_ceil(BOUNDARY_SIZE) * BOUNDARY_SIZE
 }
 
-fn pad_to(stream: &mut File, target_position: u64) -> Result<(), String> {
+fn pad_to_writer<W: Write + Seek>(stream: &mut W, target_position: u64) -> Result<(), String> {
     let current = stream.stream_position().map_err(|e| e.to_string())?;
     if target_position > current {
         let diff = target_position - current;

@@ -3,10 +3,12 @@ use crate::diff;
 use crate::hash_scanner;
 use crate::logger::UiLogger;
 use crate::xml_converter;
+use rayon::prelude::*;
 use slint::ComponentHandle;
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -109,13 +111,13 @@ pub fn register_xml_callbacks(ui: &AppWindow, logger: UiLogger) {
         let log = log_scan.clone();
         let p = PathBuf::from(xml_dir.as_str());
         thread::spawn(move || {
-            log.log("[*] Scanning XML files for unknown hashes...");
             if let Err(e) = hash_scanner::scan_and_verify(&p, |msg| log.log(msg)) {
                 log.log(&format!("[!] Scanner Error: {}", e));
             }
         });
     });
 
+    // Parallel batch XML extraction
     let log_bext = logger.clone();
     let hashes_bext = hash_db;
     ui.on_batch_extract_xml(move |folder| {
@@ -133,9 +135,14 @@ pub fn register_xml_callbacks(ui: &AppWindow, logger: UiLogger) {
                 })
                 .collect();
 
-            log.log(&format!("[*] Found {} XML files to extract.", files.len()));
-            let mut success = 0;
-            for (i, entry) in files.iter().enumerate() {
+            let total = files.len();
+            log.log(&format!(
+                "[*] Extracting {} XML files in parallel on all CPU cores...",
+                total
+            ));
+            let success_count = AtomicUsize::new(0);
+
+            files.par_iter().for_each(|entry| {
                 let out_txt_xml = entry.path().with_extension("txt.xml");
                 if xml_converter::extract_binary_xml_to_real_xml(
                     entry.path(),
@@ -144,20 +151,19 @@ pub fn register_xml_callbacks(ui: &AppWindow, logger: UiLogger) {
                 )
                 .is_ok()
                 {
-                    success += 1;
+                    success_count.fetch_add(1, Ordering::Relaxed);
                 }
-                if (i + 1) % 100 == 0 || i + 1 == files.len() {
-                    log.log(&format!("Progress: {}/{}", i + 1, files.len()));
-                }
-            }
+            });
+
             log.log(&format!(
                 "[+] Batch extraction complete: {}/{} files.",
-                success,
-                files.len()
+                success_count.load(Ordering::Relaxed),
+                total
             ));
         });
     });
 
+    // Parallel batch XML repack
     let log_brep = logger;
     ui.on_batch_repack_xml(move |folder| {
         let log = log_brep.clone();
@@ -178,9 +184,15 @@ pub fn register_xml_callbacks(ui: &AppWindow, logger: UiLogger) {
 
             let out_dir = p.join("Repacked_XML");
             let _ = std::fs::create_dir_all(&out_dir);
-            let mut success = 0;
 
-            for entry in &txt_files {
+            let total = txt_files.len();
+            log.log(&format!(
+                "[*] Repacking {} XML files in parallel on all CPU cores...",
+                total
+            ));
+            let success_count = AtomicUsize::new(0);
+
+            txt_files.par_iter().for_each(|entry| {
                 let file_name = entry
                     .path()
                     .file_name()
@@ -199,13 +211,14 @@ pub fn register_xml_callbacks(ui: &AppWindow, logger: UiLogger) {
                     )
                     .is_ok()
                 {
-                    success += 1;
+                    success_count.fetch_add(1, Ordering::Relaxed);
                 }
-            }
+            });
+
             log.log(&format!(
                 "[+] Batch repack finished: {}/{} repacked.",
-                success,
-                txt_files.len()
+                success_count.load(Ordering::Relaxed),
+                total
             ));
         });
     });
